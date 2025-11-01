@@ -2214,7 +2214,10 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
         }
 
         public void stopRecording() {
-            org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger voiceChanger = CameraView.this.videoEncoder.voiceChanger;
+            org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger voiceChanger = null;
+            if (CameraView.this.videoEncoder != null) {
+                voiceChanger = CameraView.this.videoEncoder.voiceChanger;
+            }
             if (voiceChanger != null && !voiceChanger.isWritingFinished()) {
                 voiceChanger.setFinishedCallback(this::stopRecording);
                 voiceChanger.notifyWritingFinished();
