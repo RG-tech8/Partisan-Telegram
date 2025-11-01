@@ -87,6 +87,8 @@ import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.camera.CameraController;
 import org.telegram.messenger.camera.CameraView;
+import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
+import org.telegram.messenger.partisan.voicechange.VoiceChanger;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenu;
@@ -151,6 +153,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
     protected FrameLayout cameraIcon;
     protected PhotoAttachCameraCell cameraCell;
     private TextView recordTime;
+    private TextView voiceChangedLabel;
     private ImageView[] flashModeButton = new ImageView[2];
     private boolean flashAnimationInProgress;
     private float[] cameraViewLocation = new float[2];
@@ -715,6 +718,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         this.forceDarkTheme = forceDarkTheme;
         this.needCamera = needCamera;
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.albumsDidLoad);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.voiceChangingStateChanged);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.cameraInitied);
         FrameLayout container = alert.getContainer();
         showAvatarConstructor = parentAlert.avatarPicker != 0;
@@ -1137,6 +1141,18 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         recordTime.setPadding(dp(24), dp(5), dp(10), dp(5));
         container.addView(recordTime, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 16, 0, 0));
 
+        voiceChangedLabel = new TextView(context);
+        voiceChangedLabel.setText(LocaleController.getString(R.string.VoiceChanged));
+        AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, false, 1f, false);
+        voiceChangedLabel.setBackgroundResource(R.drawable.system);
+        voiceChangedLabel.getBackground().setColorFilter(new PorterDuffColorFilter(0x66000000, PorterDuff.Mode.MULTIPLY));
+        voiceChangedLabel.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        voiceChangedLabel.setTypeface(AndroidUtilities.bold());
+        voiceChangedLabel.setAlpha(0.0f);
+        voiceChangedLabel.setTextColor(0xffffffff);
+        voiceChangedLabel.setPadding(dp(10), dp(5), dp(10), dp(5));
+        container.addView(voiceChangedLabel, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 16, 0, 0));
+
         cameraPanel = new FrameLayout(context) {
             @Override
             protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -1259,6 +1275,9 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                     recordTime.setText(AndroidUtilities.formatLongDuration(videoRecordTime));
                     AndroidUtilities.runOnUIThread(videoRecordRunnable, 1000);
                 };
+                if (VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
+                    AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, true);
+                }
                 AndroidUtilities.lockOrientation(baseFragment.getParentActivity());
                 CameraController.getInstance().recordVideo(cameraView.getCameraSessionObject(), outputFile, parentAlert.avatarPicker != 0, (thumbPath, duration) -> {
                     if (outputFile == null || parentAlert.destroyed || cameraView == null) {
@@ -1966,6 +1985,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         switchCameraButton.animate().alpha(1f).translationX(0).setDuration(150).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
         tooltipTextView.animate().alpha(1f).setDuration(150).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
         AndroidUtilities.updateViewVisibilityAnimated(recordTime, false);
+        AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, false);
 
         AndroidUtilities.cancelRunOnUIThread(videoRecordRunnable);
         videoRecordRunnable = null;
@@ -3065,6 +3085,16 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
             params.topMargin = (getRootWindowInsets() == null ? dp(16)  : getRootWindowInsets().getSystemWindowInsetTop() + dp(2));
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && voiceChangedLabel != null) {
+            MarginLayoutParams params = (MarginLayoutParams) voiceChangedLabel.getLayoutParams();
+            params.topMargin = (getRootWindowInsets() == null ? dp(16)  : getRootWindowInsets().getSystemWindowInsetTop() + dp(2));
+            params.topMargin += recordTime.getPaddingTop()
+                    + (int)recordTime.getPaint().getTextSize()
+                    + recordTime.getPaddingBottom()
+                    + dp(5)
+                    + voiceChangedLabel.getPaddingTop();
+        }
+
         if (!deviceHasGoodCamera) {
             return;
         }
@@ -3658,6 +3688,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
     @Override
     public void onDestroy() {
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.cameraInitied);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.voiceChangingStateChanged);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.albumsDidLoad);
     }
 
@@ -4332,6 +4363,12 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                     }
                 }
                 updateAlbumsDropDown();
+            }
+        } else if (id == NotificationCenter.voiceChangingStateChanged) {
+            if (VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
+                AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, true);
+            } else {
+                AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, false);
             }
         } else if (id == NotificationCenter.cameraInitied) {
             checkCamera(false);
