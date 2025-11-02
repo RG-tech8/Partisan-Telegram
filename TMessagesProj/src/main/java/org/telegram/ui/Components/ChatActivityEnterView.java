@@ -12293,7 +12293,7 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
 
         TextPaint grayPaint;
         TextPaint bluePaint;
-        TextPaint redPaint;
+        TextPaint voiceChangedPaint;
 
         Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -12392,8 +12392,8 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
             bluePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             bluePaint.setTextSize(dp(15));
 
-            redPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-            redPaint.setTextSize(dp(11));
+            voiceChangedPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            voiceChangedPaint.setTextSize(dp(11));
 
             bluePaint.setTypeface(AndroidUtilities.bold());
 
@@ -12417,10 +12417,11 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
         public void updateColors() {
             grayPaint.setColor(getThemedColor(Theme.key_chat_recordTime));
             bluePaint.setColor(getThemedColor(Theme.key_chat_recordVoiceCancel));
-            redPaint.setColor(getThemedColor(Theme.key_color_red));
+            voiceChangedPaint.setColor(getThemedColor(Theme.key_chat_recordTime));
+            voiceChangedPaint.setAlpha((int)(voiceChangedPaint.getAlpha() * 0.8));
             slideToAlpha = grayPaint.getAlpha();
             cancelAlpha = bluePaint.getAlpha();
-            voiceChangedAlpha = redPaint.getAlpha();
+            voiceChangedAlpha = voiceChangedPaint.getAlpha();
             selectableBackground = Theme.createSimpleSelectorCircleDrawable(dp(60), 0, ColorUtils.setAlphaComponent(getThemedColor(Theme.key_chat_recordVoiceCancel), 26));
             selectableBackground.setCallback(this);
         }
@@ -12453,7 +12454,7 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
                 lastSize = currentSize;
                 slideToCancelWidth = grayPaint.measureText(slideToCancelString);
                 cancelWidth = bluePaint.measureText(cancelString);
-                voiceChangedWidth = redPaint.measureText(voiceChangedString);
+                voiceChangedWidth = voiceChangedPaint.measureText(voiceChangedString);
                 lastUpdateTime = System.currentTimeMillis();
 
                 int heightHalf = getMeasuredHeight() >> 1;
@@ -12470,7 +12471,7 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
 
                 slideToLayout = new StaticLayout(slideToCancelString, grayPaint, (int) slideToCancelWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
                 cancelLayout = new StaticLayout(cancelString, bluePaint, (int) cancelWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
-                voiceChangedLayout = new StaticLayout(voiceChangedString, redPaint, (int) voiceChangedWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
+                voiceChangedLayout = new StaticLayout(voiceChangedString, voiceChangedPaint, (int) voiceChangedWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
             }
         }
 
@@ -12519,7 +12520,7 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
             float offsetY = enableTransition ? 0 : cancelToProgress * dp(12);
 
             if (cancelToProgress != 1) {
-                redPaint.setAlpha((int) (voiceChangedAlpha * (1f - cancelToProgress) * slideProgress));
+                voiceChangedPaint.setAlpha((int) (voiceChangedAlpha * (1f - cancelToProgress) * slideProgress));
 
                 int slideDelta = (int) (-getMeasuredWidth() / 4 * (1f - slideProgress) + recordCircle.getTranslationX() * 0.3f);
                 canvas.save();
@@ -12557,7 +12558,7 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
             cancelRect.set((int) xi, (int) yi, (int) (xi + cancelLayout.getWidth()), (int) (yi + cancelLayout.getHeight()));
             cancelRect.inset(-dp(16), -dp(16));
             if (cancelToProgress > 0) {
-                redPaint.setAlpha((int) (cancelAlpha * cancelToProgress));
+                voiceChangedPaint.setAlpha((int) (cancelAlpha * cancelToProgress));
                 selectableBackground.setBounds(
                         getMeasuredWidth() / 2 - w, getMeasuredHeight() / 2 - w,
                         getMeasuredWidth() / 2 + w, getMeasuredHeight() / 2 + w
