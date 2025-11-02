@@ -82,7 +82,6 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
-import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
 import org.telegram.messenger.pip.activity.IPipActivityActionListener;
 import org.telegram.messenger.pip.source.IPipSourceDelegate;
 import org.telegram.messenger.pip.utils.PipActions;
@@ -600,7 +599,7 @@ public class VoIPFragment implements
         } else if (id == NotificationCenter.emojiLoaded) {
             updateKeyView(true);
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            float targetAlpha = org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.CALL) ? 1f : 0f;
+            float targetAlpha = org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL) ? 1f : 0f;
             voiceChangedLayout.animate().alpha(targetAlpha).setDuration(150).translationY(0).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
         } else if (id == NotificationCenter.closeInCallActivity) {
             windowView.finish();
@@ -1071,7 +1070,9 @@ public class VoIPFragment implements
         voiceChangedLayout.setText(LocaleController.getString(R.string.VoiceChanged));
         voiceChangedLayout.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         voiceChangedLayout.setTextColor(Color.WHITE);
-        voiceChangedLayout.setAlpha(0f);
+        if (!org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+            voiceChangedLayout.setAlpha(0f);
+        }
         ViewCompat.setImportantForAccessibility(voiceChangedLayout, ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         statusLayout.addView(voiceChangedLayout, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 0, 0, 6));
 
@@ -2344,7 +2345,7 @@ public class VoIPFragment implements
             encryptionTooltip.hide();
             callingUserTitle.animate().alpha(1f).setDuration(150).translationY(0).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
             statusTextView.animate().alpha(1f).setDuration(150).translationY(0).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
-            if (org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.CALL)) {
+            if (org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
                 voiceChangedLayout.animate().alpha(1f).setDuration(150).translationY(0).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
             }
             speakerPhoneIcon.animate().alpha(1f).translationY(0).setDuration(150).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
