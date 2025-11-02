@@ -174,6 +174,16 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
     }
 
     @Override
+    public void onFragmentDestroy() {
+        super.onFragmentDestroy();
+        if (audioRecorder != null) {
+            stopRecording();
+        }
+        originalPlayer.stopPlaying();
+        changedPlayer.stopPlaying();
+    }
+
+    @Override
     public View createView(Context context) {
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(false);
