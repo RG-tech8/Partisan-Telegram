@@ -231,12 +231,12 @@ public class FakePasscode {
             return false;
         }
         String messageIdStr = message.id + ":" + Utils.getMessageDialogId(message);
-        if (messageIdStr.equals(SharedConfig.previousMessageActivatorId)) {
-            return false;
-        } else {
-            SharedConfig.savePreviousMessageActivatorId(messageIdStr);
-        }
         if (activationMessage.equals(message.message)) {
+            if (messageIdStr.equals(SharedConfig.previousMessageActivatorId)) {
+                return false;
+            } else {
+                SharedConfig.savePreviousMessageActivatorId(messageIdStr);
+            }
             executeActions();
             SharedConfig.fakePasscodeActivated(SharedConfig.fakePasscodes.indexOf(this));
             SharedConfig.saveConfig();
