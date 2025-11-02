@@ -4365,11 +4365,8 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                 updateAlbumsDropDown();
             }
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            if (VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
-                AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, true);
-            } else {
-                AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, false);
-            }
+            boolean show = VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE);
+            AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, show);
         } else if (id == NotificationCenter.cameraInitied) {
             checkCamera(false);
         }
