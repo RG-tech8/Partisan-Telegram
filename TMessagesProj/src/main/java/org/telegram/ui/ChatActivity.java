@@ -41317,29 +41317,33 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 Browser.openUrl(getParentActivity(), Uri.parse(webPage.url), true, true, false, progressDialogCurrent, null, false, true, false);
             } else {
                 if (messageObject.isSponsored()) {
-                    logSponsoredClicked(messageObject, false, false);
-                    if (messageObject.sponsoredUrl != null) {
-                        if (progressDialogCurrent != null) {
-                            progressDialogCurrent.cancel(true);
-                        }
-                        progressDialogCurrent = cell == null || cell.getMessageObject() == null ? null : new Browser.Progress() {
-                            @Override
-                            public void init() {
-                                progressDialogAtMessageId = cell.getMessageObject().getId();
-                                progressDialogAtMessageType = PROGRESS_INSTANT;
-                                progressDialogLinkSpan = null;
-                                cell.invalidate();
+                    AlertsCreator.showConfirmDangerousActionDialogIfNeed(ChatActivity.this,
+                            messageObject.sponsoredUrl != null && !Browser.isInternalUri(Uri.parse(messageObject.sponsoredUrl), null),
+                            () -> {
+                        logSponsoredClicked(messageObject, false, false);
+                        if (messageObject.sponsoredUrl != null) {
+                            if (progressDialogCurrent != null) {
+                                progressDialogCurrent.cancel(true);
                             }
-
-                            @Override
-                            public void end(boolean replaced) {
-                                if (!replaced) {
-                                    AndroidUtilities.runOnUIThread(ChatActivity.this::resetProgressDialogLoading, 250);
+                            progressDialogCurrent = cell == null || cell.getMessageObject() == null ? null : new Browser.Progress() {
+                                @Override
+                                public void init() {
+                                    progressDialogAtMessageId = cell.getMessageObject().getId();
+                                    progressDialogAtMessageType = PROGRESS_INSTANT;
+                                    progressDialogLinkSpan = null;
+                                    cell.invalidate();
                                 }
-                            }
-                        };
-                        Browser.openUrl(getContext(), Uri.parse(messageObject.sponsoredUrl), true, false, false, progressDialogCurrent, null, false, getMessagesController().sponsoredLinksInappAllow, false);
-                    }
+
+                                @Override
+                                public void end(boolean replaced) {
+                                    if (!replaced) {
+                                        AndroidUtilities.runOnUIThread(ChatActivity.this::resetProgressDialogLoading, 250);
+                                    }
+                                }
+                            };
+                            Browser.openUrl(getContext(), Uri.parse(messageObject.sponsoredUrl), true, false, false, progressDialogCurrent, null, false, getMessagesController().sponsoredLinksInappAllow, false);
+                        }
+                    });
                 } else {
                     TLRPC.WebPage webPage = messageObject.getStoryMentionWebpage();
                     if (webPage == null && messageObject.messageOwner != null && messageObject.messageOwner.media != null) {
