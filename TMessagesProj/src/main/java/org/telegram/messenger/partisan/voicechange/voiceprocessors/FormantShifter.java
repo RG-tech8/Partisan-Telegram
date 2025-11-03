@@ -5,6 +5,7 @@ import org.telegram.messenger.partisan.voicechange.ParametersProvider;
 import org.telegram.messenger.partisan.voicechange.VoiceChangeSettings;
 import org.telegram.messenger.partisan.voicechange.WorldUtils;
 
+import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -101,7 +102,7 @@ public class FormantShifter extends ChainedAudioProcessor {
             return;
         }
 
-        overlapAdd(outputAccumulator, shiftedAudioBuffer);
+        mergeAudioBufferWithOutput(outputAccumulator, shiftedAudioBuffer);
         updateAudioEventBuffer(audioEvent);
         if (nextAudioProcessor != null) {
             nextAudioProcessor.process(audioEvent);
@@ -124,14 +125,18 @@ public class FormantShifter extends ChainedAudioProcessor {
         return false;
     }
 
-    private void overlapAdd(float[] outputAccumulator, float[] audioBuffer) {
-        for(int i = 0; i < audioBuffer.length ; i ++){
-            float window = (float) (-0.5 * Math.cos(2.0 * Math.PI * (double)i / (double)bufferSize) + 0.5);
-            float currentValue = window * audioBuffer[i]/(float) osamp;
+    private void mergeAudioBufferWithOutput(float[] outputAccumulator, float[] audioBuffer) {
+        if (osamp == 1) {
+            Arrays.fill(outputAccumulator, 0f);
+        }
+        for (int i = 0; i < audioBuffer.length; i++) {
             if (osamp == 1) {
-                outputAccumulator[i] = currentValue;
+                outputAccumulator[i] = audioBuffer[i];
             } else {
-                outputAccumulator[i] = outputAccumulator[i] + currentValue;
+                outputAccumulator[i] = outputAccumulator[i] + audioBuffer[i];
+                if (i < bufferOverlap || i > bufferSize - bufferOverlap) {
+                    outputAccumulator[i] /= 2;
+                }
             }
             outputAccumulator[i] = clipAudioSample(outputAccumulator[i]);
         }
