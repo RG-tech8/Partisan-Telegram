@@ -160,6 +160,19 @@ public class VoiceChanger {
         });
     }
 
+    public void forceStop() {
+        notifyWritingFinished();
+        threadPoolExecutor.execute(() -> {
+            try {
+                for (AbstractDispatcherNode dispatcherNode : dispatcherNodes) {
+                    dispatcherNode.forceStopDispatcher();
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
     public boolean isWritingFinished() {
         return writingFinished;
     }

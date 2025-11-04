@@ -60,6 +60,10 @@ abstract class AbstractDispatcherNode {
         dispatcherThread.join();
     }
 
+    public void forceStopDispatcher() {
+        dispatcher.stop();
+    }
+
     protected void stopOutputStream() throws IOException {
 
     }

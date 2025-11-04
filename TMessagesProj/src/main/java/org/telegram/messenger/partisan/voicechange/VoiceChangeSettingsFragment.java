@@ -66,6 +66,7 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
     private final DispatchQueue recordQueue = new DispatchQueue("recordQueue");
     private ByteArrayOutputStream changedOutputAudioBuffer = null;
     private ByteArrayOutputStream originalOutputAudioBuffer = null;
+    private Runnable voiceChangingFinishedCallback = null;
 
     private final VoiceChangeExamplePlayer changedPlayer = new VoiceChangeExamplePlayer();
     private final VoiceChangeExamplePlayer originalPlayer = new VoiceChangeExamplePlayer();
@@ -179,8 +180,7 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
         if (audioRecorder != null) {
             stopRecording();
         }
-        originalPlayer.stopPlaying();
-        changedPlayer.stopPlaying();
+        stopPlaying();
     }
 
     @Override
@@ -231,6 +231,7 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
                     VoiceChangeSettings.generateNewParameters();
                     listAdapter.notifyItemChanged(aggressiveChangeLevelRow);
                     listAdapter.notifyItemChanged(moderateChangeLevelRow);
+                    voiceChangingParametersChanged();
                 }
             } else if (position == moderateChangeLevelRow) {
                 if (VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true)) {
@@ -238,12 +239,12 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
                     VoiceChangeSettings.generateNewParameters();
                     listAdapter.notifyItemChanged(aggressiveChangeLevelRow);
                     listAdapter.notifyItemChanged(moderateChangeLevelRow);
+                    voiceChangingParametersChanged();
                 }
             } else if (position == recordRow) {
                 if (audioRecorder == null) {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                    changedPlayer.stopPlaying();
-                    originalPlayer.stopPlaying();
+                    stopPlaying();
                     if (Build.VERSION.SDK_INT >= 23 && getParentActivity().checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                         getParentActivity().requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 3);
                         return;
@@ -306,9 +307,9 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
     }
 
     private void onPlayerButtonClicked(View view, boolean changed) {
-        if (audioRecorder != null) {
+        if (voiceChanger != null) {
+            voiceChangingFinishedCallback = () -> onPlayerButtonClicked(view, changed);
             stopRecording();
-            AndroidUtilities.runOnUIThread(() -> onPlayerButtonClicked(view, changed), 100);
         }
         VoiceChangeExamplePlayer player = changed ? changedPlayer : originalPlayer;
         ByteArrayOutputStream buffer = changed ? changedOutputAudioBuffer : originalOutputAudioBuffer;
@@ -354,6 +355,13 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
     }
 
     private void stopRecording() {
+        stopRecording(false);
+    }
+
+    private void stopRecording(boolean force) {
+        if (force && voiceChanger != null) {
+            voiceChanger.forceStop();
+        }
         recordQueue.postRunnable(() -> {
             try {
                 if (audioRecorder != null) {
@@ -363,6 +371,9 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
                 }
                 if (voiceChanger != null) {
                     voiceChanger.notifyWritingFinished();
+                    if (force) {
+                        voiceChanger.forceStop();
+                    }
                 }
             } catch (Exception e) {
                 PartisanLog.e(e);
@@ -384,6 +395,10 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
             }
             if (voiceChanger != null) {
                 voiceChanger = null;
+            }
+            if (voiceChangingFinishedCallback != null) {
+                AndroidUtilities.runOnUIThread(voiceChangingFinishedCallback);
+                voiceChangingFinishedCallback = null;
             }
         } catch (Exception e) {
             FileLog.e(e);
@@ -426,6 +441,27 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
         return Utils.getActivatedAccountsSortedByLoginTime().stream()
                 .filter(a -> UserConfig.getInstance(a).voiceChangeEnabledForAccount)
                 .collect(Collectors.toList());
+    }
+
+    private void voiceChangingParametersChanged() {
+        stopPlaying();
+        if (voiceChanger != null) {
+            voiceChangingFinishedCallback = VoiceChangeSettingsFragment.this::resetBuffers;
+            stopRecording(true);
+        } else if (changedOutputAudioBuffer != null || originalOutputAudioBuffer != null) {
+            AndroidUtilities.runOnUIThread(VoiceChangeSettingsFragment.this::resetBuffers);
+        }
+    }
+
+    private void stopPlaying() {
+        originalPlayer.stopPlaying();
+        changedPlayer.stopPlaying();
+    }
+
+    private void resetBuffers() {
+        changedOutputAudioBuffer = null;
+        originalOutputAudioBuffer = null;
+        listAdapter.notifyDataSetChanged();
     }
 
     @Override
@@ -579,6 +615,7 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
                             VoiceChangeSettings.useSpectrumDistortion.set(false);
                             VoiceChangeSettings.formantShiftingHarvest.set(true);
                         }
+                        voiceChangingParametersChanged();
                     });
                     int currentQuality;
                     if (VoiceChangeSettings.useSpectrumDistortion.get().orElse(false)) {
