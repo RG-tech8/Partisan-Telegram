@@ -28,11 +28,7 @@ public class TesterSettings {
     }
 
     public static boolean areTesterSettingsActivated() {
-        if (FakePasscodeUtils.isFakePasscodeActivated()) {
-            return false;
-        } else {
-            return SharedConfig.activatedTesterSettingType != 0;
-        }
+        return SharedConfig.activatedTesterSettingType != 0;
     }
 
     private static List<Setting<?>> getAllSettings() {
