@@ -3,6 +3,7 @@ package org.telegram.messenger.partisan.voicechange;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.AudioSaverProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.ChainedAudioProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.ChainedPitchShifter;
@@ -212,6 +213,9 @@ public class VoiceChanger {
     }
 
     private static boolean voiceChangeEnabled(int accountNum, VoiceChangeType type) {
+        if (FakePasscodeUtils.isFakePasscodeActivated() && !VoiceChangeSettings.voiceChangeWorksWithFakePasscode.get().orElse(true)) {
+            return false;
+        }
         if (!VoiceChangeSettings.voiceChangeEnabled.get().orElse(false)) {
             return false;
         }
