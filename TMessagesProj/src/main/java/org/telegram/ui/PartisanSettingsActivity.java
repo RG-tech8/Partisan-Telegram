@@ -384,13 +384,8 @@ public class PartisanSettingsActivity extends BaseFragment {
             transferDataToOtherPtgRow = -1;
             transferDataToOtherPtgDetailRow = -1;
         }
-        if (TesterSettings.areTesterSettingsActivated()) {
-            voiceChangeRow = rowCount++;
-            voiceChangeDetailRow = rowCount++;
-        } else {
-            voiceChangeRow = -1;
-            voiceChangeDetailRow = -1;
-        }
+        voiceChangeRow = rowCount++;
+        voiceChangeDetailRow = rowCount++;
         fileProtectionRow = rowCount++;
         fileProtectionDetailRow = rowCount++;
         onScreenLockActionRow = rowCount++;

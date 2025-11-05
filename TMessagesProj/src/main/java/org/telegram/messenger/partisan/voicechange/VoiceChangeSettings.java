@@ -43,7 +43,6 @@ public class VoiceChangeSettings {
     public static void loadSettings() {
         for (Setting<?> setting : getAllSettings()) {
             setting.load();
-            setting.setConditionForGet(TesterSettings::areTesterSettingsActivated);
         }
     }
 
