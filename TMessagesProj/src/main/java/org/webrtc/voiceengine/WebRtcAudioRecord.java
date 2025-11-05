@@ -26,7 +26,6 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import org.telegram.messenger.FileLog;
-import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
 import org.telegram.messenger.voip.VideoCapturerDevice;
 import org.webrtc.Logging;
 import org.webrtc.ThreadUtils;
@@ -452,11 +451,11 @@ public class WebRtcAudioRecord {
       reportWebRtcAudioRecordStartError(AudioRecordStartErrorCode.AUDIO_RECORD_START_STATE_MISMATCH, "AudioRecord.startRecording failed - incorrect state :" + audioRecord.getRecordingState());
       return false;
     }
-    if (org.telegram.messenger.partisan.voicechange.VoiceChanger.needChangeVoice(accountNum, org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
-      voiceChanger = new org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger(requestedSampleRate, VoiceChangeType.CALL);
-    } else {
-      voiceChanger = null;
-    }
+    voiceChanger = org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger.createVoiceChangedIfNeeded(
+            accountNum,
+            org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL,
+            requestedSampleRate
+    );
     audioThread = new AudioRecordThread("AudioRecordJavaThread");
     audioThread.start();
     return true;

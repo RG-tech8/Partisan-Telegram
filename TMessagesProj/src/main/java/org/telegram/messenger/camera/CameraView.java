@@ -70,7 +70,6 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
-import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
 import org.telegram.messenger.video.MP4Builder;
 import org.telegram.messenger.video.MediaCodecVideoConvertor;
 import org.telegram.messenger.video.Mp4Movie;
@@ -2994,11 +2993,11 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
                 }
                 audioRecorder = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, audioSampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
                 audioRecorder.startRecording();
-                if (org.telegram.messenger.partisan.voicechange.VoiceChanger.needChangeVoice(UserConfig.selectedAccount, org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE)) {
-                    voiceChanger = new org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger(audioRecorder.getSampleRate(), VoiceChangeType.VIDEO_MESSAGE);
-                } else {
-                    voiceChanger = null;
-                }
+                voiceChanger = org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger.createVoiceChangedIfNeeded(
+                        UserConfig.selectedAccount,
+                        org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE,
+                        audioRecorder.getSampleRate()
+                );
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("CameraView " + "initied audio record with channels " + audioRecorder.getChannelCount() + " sample rate = " + audioRecorder.getSampleRate() + " bufferSize = " + bufferSize);
                 }

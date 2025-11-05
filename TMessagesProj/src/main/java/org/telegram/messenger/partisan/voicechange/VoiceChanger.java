@@ -53,6 +53,14 @@ public class VoiceChanger {
         AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.voiceChangingStateChanged));
     }
 
+    public static VoiceChanger createVoiceChangedIfNeeded(int accountNum, VoiceChangeType type, int sampleRate) {
+        if (needChangeVoice(accountNum, type)) {
+            return new VoiceChanger(sampleRate, type);
+        } else {
+            return null;
+        }
+    }
+
     private void buildDispatcherChain() throws IOException {
         addIntermediateDispatcherNodesToChain();
         dispatcherNodes.add(createFinalOutputNode(currentInputStream));

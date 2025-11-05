@@ -81,7 +81,6 @@ import org.telegram.messenger.chromecast.ChromecastFileServer;
 import org.telegram.messenger.chromecast.ChromecastMedia;
 import org.telegram.messenger.chromecast.ChromecastMediaVariations;
 import org.telegram.messenger.partisan.secretgroups.EncryptedGroupUtils;
-import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
 import org.telegram.messenger.video.MediaCodecVideoConvertor;
 import org.telegram.messenger.voip.VoIPService;
 import org.telegram.tgnet.ConnectionsManager;
@@ -4718,11 +4717,11 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 recordQuickReplyShortcutId = quick_shortcut_id;
                 fileBuffer.rewind();
                 audioRecorder.startRecording();
-                if (org.telegram.messenger.partisan.voicechange.VoiceChanger.needChangeVoice(currentAccount, org.telegram.messenger.partisan.voicechange.VoiceChangeType.VOICE_MESSAGE)) {
-                    voiceChanger = new org.telegram.messenger.partisan.voicechange.VoiceChanger(audioRecorder.getSampleRate(), VoiceChangeType.VOICE_MESSAGE);
-                } else {
-                    voiceChanger = null;
-                }
+                voiceChanger = org.telegram.messenger.partisan.voicechange.VoiceChanger.createVoiceChangedIfNeeded(
+                        currentAccount,
+                        org.telegram.messenger.partisan.voicechange.VoiceChangeType.VOICE_MESSAGE,
+                        audioRecorder.getSampleRate()
+                );
             } catch (Exception e) {
                 FileLog.e(e);
                 recordingAudio = null;

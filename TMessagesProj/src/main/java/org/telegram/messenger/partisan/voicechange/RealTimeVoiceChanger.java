@@ -18,6 +18,14 @@ public class RealTimeVoiceChanger extends VoiceChanger {
         super(sampleRate, type);
     }
 
+    public static RealTimeVoiceChanger createVoiceChangedIfNeeded(int accountNum, VoiceChangeType type, int sampleRate) {
+        if (needChangeVoice(accountNum, type)) {
+            return new RealTimeVoiceChanger(sampleRate, type);
+        } else {
+            return null;
+        }
+    }
+
     @Override
     protected void addIntermediateDispatcherNodesToChain() throws IOException {
         super.addIntermediateDispatcherNodesToChain();
