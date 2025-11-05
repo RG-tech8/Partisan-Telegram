@@ -38,7 +38,6 @@ public class VoiceChangeSettings {
             Arrays.stream(VoiceChangeType.values()).map(Object::toString).collect(Collectors.toSet()));
     public static final BooleanSetting useSpectrumDistortion = new BooleanSetting("useSpectrumDistortion", false);
     public static final BooleanSetting formantShiftingHarvest = new BooleanSetting("formantShiftingHarvest", false);
-    public static final BooleanSetting showBenchmarkButton = new BooleanSetting("showBenchmarkButton", false);
 
     public static void loadSettings() {
         for (Setting<?> setting : getAllSettings()) {

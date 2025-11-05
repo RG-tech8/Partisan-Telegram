@@ -30,6 +30,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.partisan.PartisanLog;
 import org.telegram.messenger.partisan.PartisanSlideChooseView;
 import org.telegram.messenger.partisan.Utils;
+import org.telegram.messenger.partisan.settings.TesterSettings;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -500,7 +501,7 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
         enableForTypesDelimiterRow = rowCount++;
         showVoiceChangedNotificationRow = rowCount++;
         showVoiceChangedNotificationDescriptionRow = rowCount++;
-        if (VoiceChangeSettings.showBenchmarkButton.get().orElse(false)) {
+        if (TesterSettings.areTesterSettingsActivated()) {
             benchmarkRow = rowCount++;
         }
     }

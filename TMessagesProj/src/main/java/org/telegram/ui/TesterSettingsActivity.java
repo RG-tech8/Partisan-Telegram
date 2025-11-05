@@ -395,7 +395,6 @@ public class TesterSettingsActivity extends BaseFragment {
             new HeaderItem(this, "Bad Sh Cutoff"),
             new SeekBarItem(this, VoiceChangeSettings.badShCutoff, 0, 15000, 250),
             new ToggleItem(this, "Harvest", VoiceChangeSettings.formantShiftingHarvest),
-            new ToggleItem(this, "Show Benchmark Button", VoiceChangeSettings.showBenchmarkButton),
             new DelimiterItem(this),
 
 
