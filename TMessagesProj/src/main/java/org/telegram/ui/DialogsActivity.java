@@ -6973,7 +6973,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (rightSlidingDialogContainer != null) {
             rightSlidingDialogContainer.onResume();
         }
-        if (!parentLayout.isInPreviewMode() && blurredView != null && blurredView.getVisibility() == View.VISIBLE) {
+        if (parentLayout != null && !parentLayout.isInPreviewMode() && blurredView != null && blurredView.getVisibility() == View.VISIBLE) {
             blurredView.setVisibility(View.GONE);
             blurredView.setBackground(null);
         }
