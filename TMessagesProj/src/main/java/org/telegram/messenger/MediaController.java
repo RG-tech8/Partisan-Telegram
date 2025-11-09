@@ -1034,13 +1034,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             if (audioRecorder != null) {
                 ByteBuffer buffer;
                 org.telegram.messenger.partisan.voicechange.VoiceChanger voiceChanger = MediaController.this.voiceChanger;
-                if (!recordBuffers.isEmpty()) {
+                if (!recordBuffers.isEmpty() && voiceChanger == null) {
                     buffer = recordBuffers.get(0);
                     recordBuffers.remove(0);
-                    if (voiceChanger != null) {
-                        buffer = ByteBuffer.allocateDirect(recordBufferSize);
-                        buffer.order(ByteOrder.nativeOrder());
-                    }
                 } else {
                     buffer = ByteBuffer.allocateDirect(recordBufferSize);
                     buffer.order(ByteOrder.nativeOrder());
@@ -1053,7 +1049,6 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     }
                     byte[] changedVoice = voiceChanger.readAll();
                     if (changedVoice.length == 0 && !voiceChanger.isVoiceChangingFinished()) {
-                        recordBuffers.add(buffer);
                         recordQueue.postRunnable(recordRunnable);
                         return;
                     }
@@ -1125,12 +1120,18 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                 finalBuffer.limit(oldLimit);
                             }
                         }
-                        recordQueue.postRunnable(() -> recordBuffers.add(finalBuffer));
+                        recordQueue.postRunnable(() -> {
+                            if (voiceChanger == null) {
+                                recordBuffers.add(finalBuffer);
+                            }
+                        });
                     });
                     recordQueue.postRunnable(recordRunnable);
                     AndroidUtilities.runOnUIThread(() -> NotificationCenter.getInstance(recordingCurrentAccount).postNotificationName(NotificationCenter.recordProgressChanged, recordingGuid, amplitude));
                 } else {
-                    recordBuffers.add(buffer);
+                    if (voiceChanger == null) {
+                        recordBuffers.add(buffer);
+                    }
                     if (sendAfterDone != 3 && sendAfterDone != 4) {
                         stopRecordingInternal(sendAfterDone, sendAfterDoneNotify, sendAfterDoneScheduleDate, sendAfterDoneOnce, sendAfterDonePayStars);
                     }
