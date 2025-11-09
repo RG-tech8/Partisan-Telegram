@@ -107,8 +107,40 @@ static void AperiodicityEstimation(double *x, int x_length,
         world_parameters->fft_size, &option, world_parameters->aperiodicity);
 }
 
-static void ParameterModification(double shift, double ratio, int fs, int f0_length,
-                                  int fft_size, double* f0, double** spectrogram) {
+void BreakSounds(double** spectrogram, int fft_size, double* f0, int fs, int f0_length,
+                  int bad_s_threshold, int bad_s_cutoff,
+                  int bad_sh_min_threshold, int bad_sh_max_threshold, int bad_sh_cutoff)
+{
+    double* freq_axis = new double[fft_size];
+    for (int i = 0; i <= fft_size / 2; ++i) {
+        freq_axis[i] = static_cast<double>(i) / fft_size * fs;
+    }
+
+    for (int i = 0; i < f0_length; ++i) {
+        double full_sum = 0.0;
+        double magnitudes_sum = 0.0;
+        for (int j = 0; j <= fft_size / 2; ++j) {
+            double current_abs_magnitude = std::abs(spectrogram[i][j]);
+            magnitudes_sum += current_abs_magnitude;
+            full_sum += current_abs_magnitude * freq_axis[j];
+        }
+
+        double centroid = magnitudes_sum > 0 ? full_sum / magnitudes_sum : 0.0;
+        if (bad_s_cutoff > 0 && centroid > bad_s_threshold) {
+            for (int j = fft_size / 2; j > 0 && freq_axis[j] > bad_s_cutoff; j--) {
+                spectrogram[i][j] *= 1E-7;
+            }
+        } else if (bad_sh_cutoff > 0 && bad_sh_min_threshold < centroid && centroid < bad_sh_max_threshold) {
+            for (int j = 0; j < fft_size / 2 && freq_axis[j] < bad_sh_cutoff; j++) {
+                spectrogram[i][j] = 1E-7;
+            }
+        }
+    }
+    delete[] freq_axis;
+}
+
+static void ShiftFormants(double shift, double ratio, int fs, int f0_length,
+                          int fft_size, double* f0, double** spectrogram) {
     for (int i = 0; i < f0_length; ++i) {
         f0[i] *= shift;
     }
@@ -191,7 +223,9 @@ static void ClipAudioData(double *y, int y_length) {
     }
 }
 
-static void ShiftFormants(double shift, double ratio, int fs, const float* x_float, int x_length, float* y_float, int* y_length, int harvest) {
+static void ChangeVoice(double shift, double ratio, int fs, const float* x_float, int x_length, float* y_float, int* y_length, int harvest,
+                        int bad_s_threshold, int bad_s_cutoff,
+                        int bad_sh_min_threshold, int bad_sh_max_threshold, int bad_sh_cutoff) {
     double* x = new double[x_length];
     FloatArrayToDoubleArray(x_float, x, x_length);
 
@@ -207,9 +241,17 @@ static void ShiftFormants(double shift, double ratio, int fs, const float* x_flo
     SpectralEnvelopeEstimation(x, x_length, &world_parameters);
     AperiodicityEstimation(x, x_length, &world_parameters);
 
-    ParameterModification(shift, ratio, fs, world_parameters.f0_length,
-                          world_parameters.fft_size, world_parameters.f0,
-                          world_parameters.spectrogram);
+    if (bad_s_cutoff > 0 || bad_sh_cutoff > 0) {
+        BreakSounds(world_parameters.spectrogram, world_parameters.fft_size, world_parameters.f0, fs, world_parameters.f0_length,
+                     bad_s_threshold, bad_s_cutoff,
+                     bad_sh_min_threshold, bad_sh_max_threshold, bad_sh_cutoff);
+    }
+
+    if (std::abs(shift - 1.0) > 1E-6 || std::abs(shift - 1.0) > 1E-6) {
+        ShiftFormants(shift, ratio, fs, world_parameters.f0_length,
+                      world_parameters.fft_size, world_parameters.f0,
+                      world_parameters.spectrogram);
+    }
 
     *y_length = CalculateYLength(&world_parameters);
     double* y = new double[*y_length];
@@ -226,10 +268,14 @@ static void ShiftFormants(double shift, double ratio, int fs, const float* x_flo
     delete[] y;
 }
 
-extern "C" JNIEXPORT jint Java_org_telegram_messenger_partisan_voicechange_WorldUtils_shiftFormants(JNIEnv *env, jclass clazz, jdouble shift, jdouble ratio, jint fs, jfloatArray x, jint x_length, jfloatArray y, jint harvest) {
+extern "C" JNIEXPORT jint Java_org_telegram_messenger_partisan_voicechange_WorldUtils_changeVoice(JNIEnv *env, jclass clazz, jdouble shift, jdouble ratio, jint fs, jfloatArray x, jint x_length, jfloatArray y, jint harvest,
+                                                                                                    jint bad_s_threshold, jint bad_s_cutoff,
+                                                                                                    jint bad_sh_min_threshold, jint bad_sh_max_threshold, jint bad_sh_cutoff) {
     jfloat* xTmp = env->GetFloatArrayElements(x, nullptr);
     jfloat* yTmp = env->GetFloatArrayElements(y, nullptr);
     int yLength;
-    ShiftFormants(shift, ratio, fs, xTmp, x_length, yTmp, &yLength, harvest);
+    ChangeVoice(shift, ratio, fs, xTmp, x_length, yTmp, &yLength, harvest,
+                bad_s_threshold, bad_s_cutoff,
+                bad_sh_min_threshold, bad_sh_max_threshold, bad_sh_cutoff);
     return yLength;
 }

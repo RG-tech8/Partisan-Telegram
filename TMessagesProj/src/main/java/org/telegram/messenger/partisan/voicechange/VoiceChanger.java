@@ -7,8 +7,8 @@ import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.AudioSaverProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.ChainedAudioProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.ChainedPitchShifter;
-import org.telegram.messenger.partisan.voicechange.voiceprocessors.FormantShifter;
-import org.telegram.messenger.partisan.voicechange.voiceprocessors.SpectrumDistorter;
+import org.telegram.messenger.partisan.voicechange.voiceprocessors.CombinedWorldProcessor;
+import org.telegram.messenger.partisan.voicechange.voiceprocessors.CombinedSpectrumProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.TimeDistorter;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.TimeStretcher;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.VoiceDefectsProcessor;
@@ -68,15 +68,18 @@ public class VoiceChanger {
 
     protected void addIntermediateDispatcherNodesToChain() throws IOException {
         if (parametersProvider.formantShiftingEnabled()) {
+            CombinedWorldProcessor worldProcessor = new CombinedWorldProcessor(parametersProvider, sampleRate);
             addIntermediateDispatcherNode(
-                    new FormantShifter(parametersProvider, sampleRate),
-                    FormantShifter.bufferSize,
-                    FormantShifter.bufferOverlap
+                    worldProcessor,
+                    worldProcessor.bufferSize,
+                    worldProcessor.bufferOverlap
             );
-        } else if (parametersProvider.spectrumDistortionEnabled()) {
-            addIntermediateDispatcherNode(new SpectrumDistorter(parametersProvider, sampleRate));
         } else if (parametersProvider.pitchShiftingEnabled()) {
             addIntermediateDispatcherNode(new ChainedPitchShifter(parametersProvider, sampleRate));
+        }
+
+        if (!parametersProvider.formantShiftingEnabled()) {
+            addIntermediateDispatcherNode(new CombinedSpectrumProcessor(parametersProvider, sampleRate));
         }
 
         addIntermediateDispatcherNode(new VoiceDefectsProcessor(parametersProvider, sampleRate));

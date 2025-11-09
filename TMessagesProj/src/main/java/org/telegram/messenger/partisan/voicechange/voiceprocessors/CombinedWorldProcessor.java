@@ -1,6 +1,5 @@
 package org.telegram.messenger.partisan.voicechange.voiceprocessors;
 
-import org.telegram.messenger.DispatchQueue;
 import org.telegram.messenger.partisan.voicechange.ParametersProvider;
 import org.telegram.messenger.partisan.voicechange.VoiceChangeSettings;
 import org.telegram.messenger.partisan.voicechange.WorldUtils;
@@ -13,12 +12,11 @@ import java.util.concurrent.TimeUnit;
 
 import be.tarsos.dsp.AudioEvent;
 import be.tarsos.dsp.io.TarsosDSPAudioFormat;
-import be.tarsos.dsp.resample.Resampler;
 
-public class FormantShifter extends ChainedAudioProcessor {
-
-    public static final int bufferSize = 16 * 1024;
-    public static final int bufferOverlap = bufferSize / 2;
+public class CombinedWorldProcessor extends ChainedAudioProcessor {
+    private static final int bufferLengthMs = 350;
+    public final int bufferSize;
+    public final int bufferOverlap;
 
     private final ParametersProvider parametersProvider;
     private final int sampleRate;
@@ -26,15 +24,18 @@ public class FormantShifter extends ChainedAudioProcessor {
     private final long osamp;
 
     private final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors(), 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
-    private final DispatchQueue finalizingQueue = new DispatchQueue("FormantShifterFinalizing");
+    private final ThreadPoolExecutor finalizingQueue = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
     private final BlockingQueue<AudioEvent> audioEventQueue = new LinkedBlockingQueue<>();
 
     private boolean needFinishProcessing = false;
     private boolean forceFinishProcessing = false;
 
-    public FormantShifter(ParametersProvider parametersProvider, int sampleRate) {
+    public CombinedWorldProcessor(ParametersProvider parametersProvider, int sampleRate) {
         this.parametersProvider = parametersProvider;
         this.sampleRate = sampleRate;
+
+        bufferSize = (int)(bufferLengthMs / 1000.0 * sampleRate) + 1;
+        bufferOverlap = 0;
 
         outputAccumulator = new float[bufferSize * 2];
         osamp = bufferSize / (bufferSize - bufferOverlap);
@@ -57,7 +58,7 @@ public class FormantShifter extends ChainedAudioProcessor {
         audioEventQueue.add(audioEventCopy);
         threadPoolExecutor.execute(() -> {
             float[] shiftedAudioBuffer = shiftFormants(audioEventCopy.getFloatBuffer());
-            finalizingQueue.postRunnable(() -> shiftingFinished(audioEventCopy, shiftedAudioBuffer));
+            finalizingQueue.execute(() -> shiftingFinished(audioEventCopy, shiftedAudioBuffer));
         });
         return true;
     }
@@ -72,23 +73,22 @@ public class FormantShifter extends ChainedAudioProcessor {
     }
 
     private float[] shiftFormants(float[] srcFloatBuffer) {
-        float[] tempAudioBuffer = new float[srcFloatBuffer.length * 4];
-
-        int tempAudioBufferLength = WorldUtils.shiftFormants(
+        float[] audioBufferResult = new float[srcFloatBuffer.length];
+        WorldUtils.changeVoice(
                 parametersProvider.getF0Shift(),
                 parametersProvider.getFormantRatio(),
                 sampleRate,
                 srcFloatBuffer,
                 srcFloatBuffer.length,
-                tempAudioBuffer,
-                VoiceChangeSettings.formantShiftingHarvest.get().orElse(false) ? 1 : 0
+                audioBufferResult,
+                VoiceChangeSettings.formantShiftingHarvest.get().orElse(false) ? 1 : 0,
+                parametersProvider.getBadSThreshold(),
+                parametersProvider.getBadSCutoff(),
+                parametersProvider.getBadShMinThreshold(),
+                parametersProvider.getBadShMaxThreshold(),
+                parametersProvider.getBadShCutoff()
         );
-
-        Resampler r = new Resampler(false,0.1,4.0);
-        double factor = (double)srcFloatBuffer.length / tempAudioBufferLength;
-        float[] audioBufferResized = new float[srcFloatBuffer.length];
-        r.process(factor, tempAudioBuffer, 0, tempAudioBufferLength, true, audioBufferResized, 0, audioBufferResized.length);
-        return audioBufferResized;
+        return audioBufferResult;
     }
 
     private float clipAudioSample(float value) {
@@ -98,7 +98,7 @@ public class FormantShifter extends ChainedAudioProcessor {
     private void shiftingFinished(AudioEvent audioEvent, float[] shiftedAudioBuffer) {
         boolean currentEventIsFirstInQueue = checkHeadAudioEventInQueueAndRemoveIfNeeded(audioEvent);
         if (!currentEventIsFirstInQueue) {
-            finalizingQueue.postRunnable(() -> shiftingFinished(audioEvent, shiftedAudioBuffer));
+            finalizingQueue.execute(() -> shiftingFinished(audioEvent, shiftedAudioBuffer));
             return;
         }
 
@@ -155,7 +155,7 @@ public class FormantShifter extends ChainedAudioProcessor {
 
     private void actualFinishProcessing() {
         threadPoolExecutor.shutdown();
-        finalizingQueue.recycle();
+        finalizingQueue.shutdown();
         if (nextAudioProcessor != null) {
             nextAudioProcessor.processingFinished();
         }
