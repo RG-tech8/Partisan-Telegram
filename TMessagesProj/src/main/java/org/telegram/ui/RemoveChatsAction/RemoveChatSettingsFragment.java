@@ -184,7 +184,7 @@ public class RemoveChatSettingsFragment extends BaseFragment {
                     }
                 }
                 updateRows();
-                listAdapter.notifyDataSetChanged();
+                listAdapter.notifyItemRangeChanged(0, rowCount);
             } else if (position == deleteFromCompanionRow) {
                 changed = true;
                 CheckBoxThreeStateCell checkBox = (CheckBoxThreeStateCell) view;
@@ -232,7 +232,7 @@ public class RemoveChatSettingsFragment extends BaseFragment {
                     }
                 }
                 updateRows();
-                listAdapter.notifyDataSetChanged();
+                listAdapter.notifyItemRangeChanged(0, rowCount);
             } else if (position == strictHidingRow) {
                 changed = true;
                 CheckBoxThreeStateCell checkBox = (CheckBoxThreeStateCell) view;
@@ -584,6 +584,7 @@ public class RemoveChatSettingsFragment extends BaseFragment {
                         String title = LocaleController.getString(R.string.StrictHiding);
                         checkBoxCell.setText(title, "", getStrictHidingState(), false);
                     }
+                    checkBoxCell.setEnabled(isEnabled(holder));
                     break;
                 }
                 case 2: {
