@@ -83,15 +83,15 @@ public class TesterSettingsParametersProvider implements ParametersProvider {
     }
 
     public int getBadSThreshold() {
-        return 4500;
+        return VoiceChangeSettings.badSThreshold.get().orElse(4500);
     }
 
     public int getBadShMinThreshold() {
-        return 2000;
+        return VoiceChangeSettings.badShMinThreshold.get().orElse(2000);
     }
 
     public int getBadShMaxThreshold() {
-        return 4500;
+        return VoiceChangeSettings.badShMaxThreshold.get().orElse(4500);
     }
 
     public int getBadSCutoff() {
