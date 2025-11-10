@@ -1,9 +1,5 @@
 package org.telegram.messenger.partisan.voicechange;
 
-import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.NotificationCenter;
-import org.telegram.messenger.UserConfig;
-import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.AudioSaverProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.ChainedAudioProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.ChainedPitchShifter;
@@ -14,18 +10,13 @@ import org.telegram.messenger.partisan.voicechange.voiceprocessors.TimeStretcher
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public class VoiceChanger {
-    private static final Set<VoiceChanger> runningVoiceChangers = new HashSet<>();
-
     private final int sampleRate;
-    private final VoiceChangeType voiceChangeType;
     private final VoiceChangePipedOutputStream initialOutputStream;
     private VoiceChangePipedInputStream currentInputStream;
     private final List<AbstractDispatcherNode> dispatcherNodes = new ArrayList<>();
@@ -34,12 +25,13 @@ public class VoiceChanger {
     private boolean writingFinished = false;
     private boolean voiceChangingFinished = false;
 
-    private static final ParametersProvider parametersProvider = new TesterSettingsParametersProvider();
+    private final ParametersProvider parametersProvider;
+    private Runnable stopCallback;
     private Runnable finishedCallback;
 
-    public VoiceChanger(int sampleRate, VoiceChangeType voiceChangeType) {
+    public VoiceChanger(ParametersProvider parametersProvider, int sampleRate) {
+        this.parametersProvider = parametersProvider;
         this.sampleRate = sampleRate;
-        this.voiceChangeType = voiceChangeType;
         this.initialOutputStream = new VoiceChangePipedOutputStream();
         audioSaver = new AudioSaverProcessor();
 
@@ -47,16 +39,6 @@ public class VoiceChanger {
             buildDispatcherChain();
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-        runningVoiceChangers.add(this);
-        AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.voiceChangingStateChanged));
-    }
-
-    public static VoiceChanger createVoiceChangedIfNeeded(int accountNum, VoiceChangeType type, int sampleRate) {
-        if (needChangeVoice(accountNum, type)) {
-            return new VoiceChanger(sampleRate, type);
-        } else {
-            return null;
         }
     }
 
@@ -199,8 +181,9 @@ public class VoiceChanger {
             stopDispatchers();
             initialOutputStream.close();
             threadPoolExecutor.shutdown();
-            runningVoiceChangers.remove(this);
-            AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.voiceChangingStateChanged));
+            if (stopCallback != null) {
+                stopCallback.run();
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -212,42 +195,11 @@ public class VoiceChanger {
         }
     }
 
+    public void setStopCallback(Runnable stopCallback) {
+        this.stopCallback = stopCallback;
+    }
+
     public void setFinishedCallback(Runnable finishedCallback) {
         this.finishedCallback = finishedCallback;
-    }
-
-    public static boolean needChangeVoice(int accountNum, VoiceChangeType type) {
-        return voiceChangeEnabled(accountNum, type) && anyParameterSet();
-    }
-
-    private static boolean voiceChangeEnabled(int accountNum, VoiceChangeType type) {
-        if (FakePasscodeUtils.isFakePasscodeActivated() && !VoiceChangeSettings.voiceChangeWorksWithFakePasscode.get().orElse(true)) {
-            return false;
-        }
-        if (!VoiceChangeSettings.voiceChangeEnabled.get().orElse(false)) {
-            return false;
-        }
-        if (type != null && !VoiceChangeSettings.isVoiceChangeTypeEnabled(type)) {
-            return false;
-        }
-        return UserConfig.getInstance(accountNum).voiceChangeEnabledForAccount;
-    }
-
-    private static boolean anyParameterSet() {
-        return parametersProvider.pitchShiftingEnabled()
-                || parametersProvider.timeStretchEnabled()
-                || parametersProvider.spectrumDistortionEnabled()
-                || parametersProvider.timeDistortionEnabled()
-                || parametersProvider.formantShiftingEnabled()
-                || parametersProvider.badSEnabled()
-                || parametersProvider.badShEnabled();
-    }
-
-    public static boolean needShowVoiceChangeNotification(VoiceChangeType type) {
-        return isAnyVoiceChangerRunning(type) && VoiceChangeSettings.showVoiceChangedNotification.get().orElse(true);
-    }
-
-    private static boolean isAnyVoiceChangerRunning(VoiceChangeType type) {
-        return runningVoiceChangers.stream().anyMatch(v -> v.voiceChangeType == type);
     }
 }

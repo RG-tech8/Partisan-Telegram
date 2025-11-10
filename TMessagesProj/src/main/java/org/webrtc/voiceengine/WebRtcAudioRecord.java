@@ -451,7 +451,7 @@ public class WebRtcAudioRecord {
       reportWebRtcAudioRecordStartError(AudioRecordStartErrorCode.AUDIO_RECORD_START_STATE_MISMATCH, "AudioRecord.startRecording failed - incorrect state :" + audioRecord.getRecordingState());
       return false;
     }
-    voiceChanger = org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger.createVoiceChangedIfNeeded(
+    voiceChanger = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.createRealTimeVoiceChangerIfNeeded(
             accountNum,
             org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL,
             requestedSampleRate

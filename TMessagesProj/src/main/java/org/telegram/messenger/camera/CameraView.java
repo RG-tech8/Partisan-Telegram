@@ -2993,7 +2993,7 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
                 }
                 audioRecorder = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, audioSampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
                 audioRecorder.startRecording();
-                voiceChanger = org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger.createVoiceChangedIfNeeded(
+                voiceChanger = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.createRealTimeVoiceChangerIfNeeded(
                         UserConfig.selectedAccount,
                         org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE,
                         audioRecorder.getSampleRate()

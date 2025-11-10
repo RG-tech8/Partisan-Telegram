@@ -1,8 +1,7 @@
 package org.telegram.messenger.partisan.voicechange.voiceprocessors;
 
 import org.telegram.messenger.partisan.voicechange.ParametersProvider;
-import org.telegram.messenger.partisan.voicechange.VoiceChangeSettings;
-import org.telegram.messenger.partisan.voicechange.WorldUtils;
+import org.telegram.messenger.partisan.voicechange.WorldVocoder;
 
 import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
@@ -74,7 +73,7 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
 
     private float[] shiftFormants(float[] srcFloatBuffer) {
         float[] audioBufferResult = new float[srcFloatBuffer.length];
-        WorldUtils.changeVoice(
+        WorldVocoder.changeVoice(
                 parametersProvider.getF0Shift(),
                 parametersProvider.getFormantRatio(),
                 sampleRate,

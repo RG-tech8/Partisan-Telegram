@@ -14,16 +14,8 @@ public class RealTimeVoiceChanger extends VoiceChanger {
     private boolean firstPieceRead = false;
     private double additionalSpeedupFactor = 0.0;
 
-    public RealTimeVoiceChanger(int sampleRate, VoiceChangeType type) {
-        super(sampleRate, type);
-    }
-
-    public static RealTimeVoiceChanger createVoiceChangedIfNeeded(int accountNum, VoiceChangeType type, int sampleRate) {
-        if (needChangeVoice(accountNum, type)) {
-            return new RealTimeVoiceChanger(sampleRate, type);
-        } else {
-            return null;
-        }
+    public RealTimeVoiceChanger(ParametersProvider parametersProvider, int sampleRate) {
+        super(parametersProvider, sampleRate);
     }
 
     @Override

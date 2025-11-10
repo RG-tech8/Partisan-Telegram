@@ -599,7 +599,7 @@ public class VoIPFragment implements
         } else if (id == NotificationCenter.emojiLoaded) {
             updateKeyView(true);
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            float targetAlpha = org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL) ? 1f : 0f;
+            float targetAlpha = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL) ? 1f : 0f;
             voiceChangedLayout.animate().alpha(targetAlpha).setDuration(150).translationY(0).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
         } else if (id == NotificationCenter.closeInCallActivity) {
             windowView.finish();
@@ -1070,7 +1070,7 @@ public class VoIPFragment implements
         voiceChangedLayout.setText(LocaleController.getString(R.string.VoiceChanged));
         voiceChangedLayout.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         voiceChangedLayout.setTextColor(Color.WHITE);
-        if (!org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+        if (!org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
             voiceChangedLayout.setAlpha(0f);
         }
         ViewCompat.setImportantForAccessibility(voiceChangedLayout, ViewCompat.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
@@ -2345,7 +2345,7 @@ public class VoIPFragment implements
             encryptionTooltip.hide();
             callingUserTitle.animate().alpha(1f).setDuration(150).translationY(0).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
             statusTextView.animate().alpha(1f).setDuration(150).translationY(0).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
-            if (org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+            if (org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
                 voiceChangedLayout.animate().alpha(1f).setDuration(150).translationY(0).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
             }
             speakerPhoneIcon.animate().alpha(1f).translationY(0).setDuration(150).setInterpolator(CubicBezierInterpolator.DEFAULT).start();

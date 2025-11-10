@@ -148,6 +148,7 @@ import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 import org.telegram.messenger.fakepasscode.RemoveAfterReadingMessages;
 import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
 import org.telegram.messenger.partisan.voicechange.VoiceChanger;
+import org.telegram.messenger.partisan.voicechange.VoiceChangerUtils;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLRPC;
@@ -12535,7 +12536,7 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
                 slideToLayout.draw(canvas);
                 canvas.restore();
 
-                if (VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VOICE_MESSAGE) || VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
+                if (VoiceChangerUtils.needShowVoiceChangeNotification(VoiceChangeType.VOICE_MESSAGE) || VoiceChangerUtils.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
                     canvas.save();
                     canvas.translate((int) x + slideDelta + (slideToCancelWidth - voiceChangedWidth) / 2, (getMeasuredHeight() - slideToLayout.getHeight()) / 2f + offsetY + slideToLayout.getHeight());
                     voiceChangedLayout.draw(canvas);
@@ -12570,7 +12571,7 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
                 cancelLayout.draw(canvas);
                 canvas.restore();
 
-                if (VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VOICE_MESSAGE) || VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
+                if (VoiceChangerUtils.needShowVoiceChangeNotification(VoiceChangeType.VOICE_MESSAGE) || VoiceChangerUtils.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
                     canvas.save();
                     canvas.translate(xi + (cancelWidth - voiceChangedWidth) / 2, yi + cancelLayout.getHeight());
                     voiceChangedLayout.draw(canvas);

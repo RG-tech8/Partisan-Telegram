@@ -268,7 +268,7 @@ static void ChangeVoice(double shift, double ratio, int fs, const float* x_float
     delete[] y;
 }
 
-extern "C" JNIEXPORT jint Java_org_telegram_messenger_partisan_voicechange_WorldUtils_changeVoice(JNIEnv *env, jclass clazz, jdouble shift, jdouble ratio, jint fs, jfloatArray x, jint x_length, jfloatArray y, jint harvest,
+extern "C" JNIEXPORT jint Java_org_telegram_messenger_partisan_voicechange_WorldVocoder_changeVoice(JNIEnv *env, jclass clazz, jdouble shift, jdouble ratio, jint fs, jfloatArray x, jint x_length, jfloatArray y, jint harvest,
                                                                                                     jint bad_s_threshold, jint bad_s_cutoff,
                                                                                                     jint bad_sh_min_threshold, jint bad_sh_max_threshold, jint bad_sh_cutoff) {
     jfloat* xTmp = env->GetFloatArrayElements(x, nullptr);

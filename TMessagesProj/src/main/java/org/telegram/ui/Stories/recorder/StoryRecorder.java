@@ -106,8 +106,6 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.camera.CameraController;
-import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
-import org.telegram.messenger.partisan.voicechange.VoiceChanger;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.AccountFrozenAlert;
@@ -7207,7 +7205,7 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
                 recordControl.updateGalleryImage();
             }
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            boolean show = VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE);
+            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE);
             voiceChangedLabel.animate().alpha(show ? 1 : 0).setDuration(350).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
         } else if (id == NotificationCenter.storiesLimitUpdate) {
             if (currentPage == PAGE_PREVIEW) {

@@ -87,8 +87,6 @@ import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.camera.CameraController;
 import org.telegram.messenger.camera.CameraView;
-import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
-import org.telegram.messenger.partisan.voicechange.VoiceChanger;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenu;
@@ -1275,7 +1273,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                     recordTime.setText(AndroidUtilities.formatLongDuration(videoRecordTime));
                     AndroidUtilities.runOnUIThread(videoRecordRunnable, 1000);
                 };
-                if (VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
+                if (org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE)) {
                     AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, true);
                 }
                 AndroidUtilities.lockOrientation(baseFragment.getParentActivity());
@@ -4365,7 +4363,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                 updateAlbumsDropDown();
             }
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            boolean show = VoiceChanger.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE);
+            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE);
             AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, show);
         } else if (id == NotificationCenter.cameraInitied) {
             checkCamera(false);

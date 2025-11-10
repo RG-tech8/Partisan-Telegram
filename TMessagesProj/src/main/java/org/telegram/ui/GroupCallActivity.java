@@ -1322,7 +1322,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
             float amplitude = (float) args[0];
             setMicAmplitude(amplitude);
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            voiceChangedLabel.setVisibility(org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL) ? View.VISIBLE : View.GONE);
+            voiceChangedLabel.setVisibility(org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL) ? View.VISIBLE : View.GONE);
         } else if (id == NotificationCenter.needShowAlert) {
             int num = (Integer) args[0];
             if (num == 6) {
@@ -5347,7 +5347,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         voiceChangedLabel.setTextColor(Color.WHITE);
         containerView.addView(voiceChangedLabel, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 6, 0, 0));
         voiceChangedLabel.setText(org.telegram.messenger.LocaleController.getString(org.telegram.messenger.R.string.VoiceChanged));
-        if (!org.telegram.messenger.partisan.voicechange.VoiceChanger.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+        if (!org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
         voiceChangedLabel.setVisibility(View.GONE);
         }
 
