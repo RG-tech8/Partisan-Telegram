@@ -224,14 +224,14 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
             if (position == enableRow) {
                 boolean newValue = VoiceChangeSettings.voiceChangeEnabled.toggle();
                 if (VoiceChangeSettings.areSettingsEmpty()) {
-                    VoiceChangeSettings.generateNewParameters();
+                    new VoiceChangeSettingsGenerator().generateParameters(true);
                 }
                 ((TextCheckCell)view).setChecked(newValue);
                 listAdapter.notifyDataSetChanged();
             } else if (position == aggressiveChangeLevelRow) {
                 if (!VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true)) {
                     VoiceChangeSettings.aggressiveChangeLevel.set(true);
-                    VoiceChangeSettings.generateNewParameters();
+                    new VoiceChangeSettingsGenerator().generateParameters(false);
                     listAdapter.notifyItemChanged(aggressiveChangeLevelRow);
                     listAdapter.notifyItemChanged(moderateChangeLevelRow);
                     voiceChangingParametersChanged();
@@ -239,7 +239,7 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
             } else if (position == moderateChangeLevelRow) {
                 if (VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true)) {
                     VoiceChangeSettings.aggressiveChangeLevel.set(false);
-                    VoiceChangeSettings.generateNewParameters();
+                    new VoiceChangeSettingsGenerator().generateParameters(false);
                     listAdapter.notifyItemChanged(aggressiveChangeLevelRow);
                     listAdapter.notifyItemChanged(moderateChangeLevelRow);
                     voiceChangingParametersChanged();
@@ -265,7 +265,7 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
             } else if (position == playOriginalRow) {
                 onPlayerButtonClicked(view, false);
             } else if (position == generateNewParametersRow) {
-                VoiceChangeSettings.generateNewParameters();
+                new VoiceChangeSettingsGenerator().generateParameters(true);
                 Toast.makeText(getContext(), getString(R.string.VoiceChanged), Toast.LENGTH_SHORT).show();
             } else if (position == enableForIndividualAccountsRow) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
@@ -611,13 +611,13 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
                         if (i == 0) {
                             VoiceChangeSettings.useSpectrumDistortion.set(true);
                             VoiceChangeSettings.formantShiftingHarvest.set(false);
-                            VoiceChangeSettings.generateNewParameters();
+                            new VoiceChangeSettingsGenerator().generateParameters(false);
                         } else if (i == 1) {
                             boolean spectrumDistortionWasEnabled = VoiceChangeSettings.useSpectrumDistortion.get().orElse(false);
                             VoiceChangeSettings.useSpectrumDistortion.set(false);
                             VoiceChangeSettings.formantShiftingHarvest.set(false);
                             if (spectrumDistortionWasEnabled) {
-                                VoiceChangeSettings.generateNewParameters();
+                                new VoiceChangeSettingsGenerator().generateParameters(false);
                             }
                         } else if (i == 2) {
                             VoiceChangeSettings.useSpectrumDistortion.set(false);
