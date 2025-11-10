@@ -12,6 +12,7 @@ public interface ParametersProvider {
     List<TimeDistorter.DistortionInterval> getTimeDistortionList();
     double getF0Shift();
     double getFormantRatio();
+    boolean shiftFormantsWithHarvest();
 
     int getBadSThreshold();
     int getBadShMinThreshold();

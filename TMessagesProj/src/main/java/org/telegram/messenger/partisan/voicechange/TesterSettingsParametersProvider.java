@@ -82,6 +82,11 @@ public class TesterSettingsParametersProvider implements ParametersProvider {
         return VoiceChangeSettings.formantRatio.get().orElse(1.0f);
     }
 
+    @Override
+    public boolean shiftFormantsWithHarvest() {
+        return VoiceChangeSettings.formantShiftingHarvest.get().orElse(false);
+    }
+
     public int getBadSThreshold() {
         return VoiceChangeSettings.badSThreshold.get().orElse(4500);
     }

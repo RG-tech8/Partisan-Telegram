@@ -81,7 +81,7 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
                 srcFloatBuffer,
                 srcFloatBuffer.length,
                 audioBufferResult,
-                VoiceChangeSettings.formantShiftingHarvest.get().orElse(false) ? 1 : 0,
+                parametersProvider.shiftFormantsWithHarvest() ? 1 : 0,
                 parametersProvider.getBadSThreshold(),
                 parametersProvider.getBadSCutoff(),
                 parametersProvider.getBadShMinThreshold(),

@@ -11,7 +11,6 @@ import org.telegram.messenger.partisan.voicechange.voiceprocessors.CombinedWorld
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.CombinedSpectrumProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.TimeDistorter;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.TimeStretcher;
-import org.telegram.messenger.partisan.voicechange.voiceprocessors.VoiceDefectsProcessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,8 +80,6 @@ public class VoiceChanger {
         if (!parametersProvider.formantShiftingEnabled()) {
             addIntermediateDispatcherNode(new CombinedSpectrumProcessor(parametersProvider, sampleRate));
         }
-
-        addIntermediateDispatcherNode(new VoiceDefectsProcessor(parametersProvider, sampleRate));
 
         if (parametersProvider.timeDistortionEnabled()) {
             addIntermediateDispatcherNode(new TimeDistorter(parametersProvider, sampleRate));
