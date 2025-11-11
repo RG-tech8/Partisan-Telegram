@@ -266,6 +266,7 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
                 onPlayerButtonClicked(view, false);
             } else if (position == generateNewParametersRow) {
                 new VoiceChangeSettingsGenerator().generateParameters(true);
+                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 Toast.makeText(getContext(), getString(R.string.VoiceChanged), Toast.LENGTH_SHORT).show();
             } else if (position == enableForIndividualAccountsRow) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
