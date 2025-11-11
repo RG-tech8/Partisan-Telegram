@@ -19,10 +19,10 @@ public class VoiceChangeSettingsGenerator {
             } else {
                 resetBadSoundsParams();
             }
-            generateFormantOrSpectrumDistortionParams(makeBadSounds ? 1.3 : 1.4, 1.7);
+            generateFormantOrSpectrumDistortionParams(makeBadSounds ? 1.3f : 1.4f, 1.7f);
         } else {
             resetBadSoundsParams();
-            generateFormantOrSpectrumDistortionParams(1.15, 1.3);
+            generateFormantOrSpectrumDistortionParams(1.15f, 1.3f);
         }
     }
 
@@ -38,9 +38,9 @@ public class VoiceChangeSettingsGenerator {
         boolean makeBadShSound = random.nextBoolean();
         if (makeBadShSound) {
             VoiceChangeSettings.badSCutoff.set(0);
-            VoiceChangeSettings.badShCutoff.set(random.nextInt(6000, 8000));
+            VoiceChangeSettings.badShCutoff.set(generateRandomInt(6000, 8000));
         } else {
-            VoiceChangeSettings.badSCutoff.set(random.nextInt(3000, 4000));
+            VoiceChangeSettings.badSCutoff.set(generateRandomInt(3000, 4000));
             VoiceChangeSettings.badShCutoff.set(0);
         }
     }
@@ -50,7 +50,7 @@ public class VoiceChangeSettingsGenerator {
         VoiceChangeSettings.badShCutoff.set(0);
     }
 
-    private void generateFormantOrSpectrumDistortionParams(double min, double max) {
+    private void generateFormantOrSpectrumDistortionParams(float min, float max) {
         if (VoiceChangeSettings.useSpectrumDistortion.get().orElse(false)) {
             generateSpectrumDistortionParams(min, max);
         } else {
@@ -58,13 +58,13 @@ public class VoiceChangeSettingsGenerator {
         }
     }
 
-    private void generateSpectrumDistortionParams(double minShift, double maxShift) {
-        double sourceShift = random.nextDouble(0.9, 1.1);
+    private void generateSpectrumDistortionParams(float minShift, float maxShift) {
+        float sourceShift = generateRandomFloat(0.9f, 1.1f);
         Function<Integer, String> makeShiftParam = src -> {
             int shiftedSrc = (int)(src * sourceShift);
-            double destShift = random.nextDouble(minShift, maxShift);
+            float destShift = generateRandomFloat(minShift, maxShift);
             if (random.nextBoolean()) {
-                destShift = 1.0 / destShift;
+                destShift = 1.0f / destShift;
             }
             int dest = (int)(shiftedSrc * destShift);
             return shiftedSrc + ":" + dest;
@@ -81,16 +81,24 @@ public class VoiceChangeSettingsGenerator {
         VoiceChangeSettings.formantRatio.set(1.0f);
     }
 
-    private void generateFormantParams(double min, double max) {
+    private void generateFormantParams(float min, float max) {
         boolean decreasePitch = random.nextBoolean();
         if (decreasePitch) {
-            double newMax = 1.0 / min;
-            min = 1.0 / max;
+            float newMax = 1.0f / min;
+            min = 1.0f / max;
             max = newMax;
         }
-        VoiceChangeSettings.f0Shift.set((float)random.nextDouble(min, max));
-        VoiceChangeSettings.formantRatio.set((float)random.nextDouble(min, max));
+        VoiceChangeSettings.f0Shift.set(generateRandomFloat(min, max));
+        VoiceChangeSettings.formantRatio.set(generateRandomFloat(min, max));
 
         VoiceChangeSettings.spectrumDistorterParams.set("");
+    }
+
+    private int generateRandomInt(int origin, int bound) {
+        return random.nextInt(bound - origin) + origin;
+    }
+
+    private float generateRandomFloat(float origin, float bound) {
+        return random.nextFloat() * (bound - origin) + origin;
     }
 }
