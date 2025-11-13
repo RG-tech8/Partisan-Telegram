@@ -427,6 +427,9 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
     }
 
     private void onBenchmarkFinished(long startTime) {
+        if (getContext() == null) {
+            return;
+        }
         long duration = System.currentTimeMillis() - startTime;
         benchmarkRatioText = getBenchmarkRatioText(duration);
         Toast.makeText(getContext(), "Ratio: " + benchmarkRatioText, Toast.LENGTH_LONG).show();
