@@ -4454,7 +4454,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 builder1.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
                 showDialog(builder1.create());
             } else if (position == testerSettingsRow) {
-                presentFragment(new TesterSettingsActivity());
+                presentFragment(new TesterSettingsFragment());
             } else if (position == languageRow) {
                 presentFragment(new LanguageSelectActivity());
             } else if (position == setUsernameRow) {
