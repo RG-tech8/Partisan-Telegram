@@ -61,10 +61,7 @@ public class VoiceChangerUtils {
 
     private static boolean anyParameterSet() {
         ParametersProvider parametersProvider = new TesterSettingsParametersProvider();
-        return parametersProvider.pitchShiftingEnabled()
-                || parametersProvider.timeStretchEnabled()
-                || parametersProvider.spectrumDistortionEnabled()
-                || parametersProvider.timeDistortionEnabled()
+        return parametersProvider.spectrumDistortionEnabled()
                 || parametersProvider.formantShiftingEnabled()
                 || parametersProvider.badSEnabled()
                 || parametersProvider.badShEnabled();

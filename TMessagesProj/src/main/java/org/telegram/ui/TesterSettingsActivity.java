@@ -380,12 +380,7 @@ public class TesterSettingsActivity extends BaseFragment {
 
 
             new HeaderItem(this, "Voice Changing"),
-            new HeaderItem(this, "Pitch Factor"),
-            new SeekBarItem(this, VoiceChangeSettings.pitchFactor, 0.2, 2.01, 0.025),
-            new HeaderItem(this, "Time Stretch Factor"),
-            new SeekBarItem(this, VoiceChangeSettings.timeStretchFactor, 0.2, 2.01, 0.025),
-            new EditableDataItem(this, "Spectrum Distortion Params", VoiceChangeSettings.spectrumDistorterParams),
-            new EditableDataItem(this, "Time Distortion Params", VoiceChangeSettings.timeDistortionParams),
+            new EditableDataItem(this, "Spectrum Distortion Params", VoiceChangeSettings.spectrumDistortionParams),
             new HeaderItem(this, "World F0 Shift"),
             new SeekBarItem(this, VoiceChangeSettings.f0Shift, 0.2, 2.01, 0.025),
             new HeaderItem(this, "World Formant Ratio"),

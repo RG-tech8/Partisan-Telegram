@@ -2,11 +2,8 @@ package org.telegram.messenger.partisan.voicechange;
 
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.AudioSaverProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.ChainedAudioProcessor;
-import org.telegram.messenger.partisan.voicechange.voiceprocessors.ChainedPitchShifter;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.CombinedWorldProcessor;
 import org.telegram.messenger.partisan.voicechange.voiceprocessors.CombinedSpectrumProcessor;
-import org.telegram.messenger.partisan.voicechange.voiceprocessors.TimeDistorter;
-import org.telegram.messenger.partisan.voicechange.voiceprocessors.TimeStretcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,18 +52,8 @@ public class VoiceChanger {
                     worldProcessor.bufferSize,
                     worldProcessor.bufferOverlap
             );
-        } else if (parametersProvider.pitchShiftingEnabled()) {
-            addIntermediateDispatcherNode(new ChainedPitchShifter(parametersProvider, sampleRate));
-        }
-
-        if (!parametersProvider.formantShiftingEnabled()) {
+        } else {
             addIntermediateDispatcherNode(new CombinedSpectrumProcessor(parametersProvider, sampleRate));
-        }
-
-        if (parametersProvider.timeDistortionEnabled()) {
-            addIntermediateDispatcherNode(new TimeDistorter(parametersProvider, sampleRate));
-        } else if (parametersProvider.timeStretchEnabled()) {
-            addIntermediateDispatcherNode(new TimeStretcher(parametersProvider));
         }
     }
 

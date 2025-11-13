@@ -75,7 +75,7 @@ public class VoiceChangeSettingsGenerator {
                 + makeShiftParam.apply(2000) + ","
                 + makeShiftParam.apply(6000);
 
-        VoiceChangeSettings.spectrumDistorterParams.set(paramString);
+        VoiceChangeSettings.spectrumDistortionParams.set(paramString);
 
         VoiceChangeSettings.f0Shift.set(1.0f);
         VoiceChangeSettings.formantRatio.set(1.0f);
@@ -91,7 +91,7 @@ public class VoiceChangeSettingsGenerator {
         VoiceChangeSettings.f0Shift.set(generateRandomFloat(min, max));
         VoiceChangeSettings.formantRatio.set(generateRandomFloat(min, max));
 
-        VoiceChangeSettings.spectrumDistorterParams.set("");
+        VoiceChangeSettings.spectrumDistortionParams.set("");
     }
 
     private int generateRandomInt(int origin, int bound) {

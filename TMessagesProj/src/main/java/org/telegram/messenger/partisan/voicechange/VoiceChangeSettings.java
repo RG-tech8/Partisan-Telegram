@@ -3,7 +3,6 @@ package org.telegram.messenger.partisan.voicechange;
 import androidx.annotation.NonNull;
 
 import com.google.common.base.Strings;
-import com.google.common.base.Supplier;
 
 import org.telegram.messenger.partisan.settings.BooleanSetting;
 import org.telegram.messenger.partisan.settings.FloatSetting;
@@ -13,23 +12,17 @@ import org.telegram.messenger.partisan.settings.Setting;
 import org.telegram.messenger.partisan.settings.SettingUtils;
 import org.telegram.messenger.partisan.settings.StringSetSetting;
 import org.telegram.messenger.partisan.settings.StringSetting;
-import org.telegram.messenger.partisan.settings.TesterSettings;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class VoiceChangeSettings {
 
     public static final BooleanSetting voiceChangeEnabled = new BooleanSetting("voiceChangeEnabled", false);
     public static final BooleanSetting aggressiveChangeLevel = new BooleanSetting("aggressiveChangeLevel", true);
-    public static final FloatSetting pitchFactor = new FloatSetting("pitchFactor", 1.0f);
-    public static final FloatSetting timeStretchFactor = new FloatSetting("timeStretchFactor", 1.0f);
-    public static final StringSetting spectrumDistorterParams = new StringSetting("spectrumDistorterParams", "");
-    public static final StringSetting timeDistortionParams = new StringSetting("timeDistortionParams", "");
+    public static final StringSetting spectrumDistortionParams = new StringSetting("spectrumDistortionParams", "");
     public static final FloatSetting f0Shift = new FloatSetting("f0Shift", 1.0f);
     public static final FloatSetting formantRatio = new FloatSetting("formantRatio", 1.0f);
     public static final IntSetting badSThreshold = new IntSetting("badSThreshold", 4500);
@@ -56,10 +49,7 @@ public class VoiceChangeSettings {
     }
 
     public static boolean areSettingsEmpty() {
-        return Math.abs(pitchFactor.get().orElse(1.0f) - 1.0f) < 0.01f
-                && Math.abs(timeStretchFactor.get().orElse(1.0f) - 1.0f) < 0.01f
-                && Strings.isNullOrEmpty(spectrumDistorterParams.get().orElse(""))
-                && Strings.isNullOrEmpty(timeDistortionParams.get().orElse(""))
+        return Strings.isNullOrEmpty(spectrumDistortionParams.get().orElse(""))
                 && Math.abs(f0Shift.get().orElse(1.0f) - 1.0f) < 0.01f
                 && Math.abs(formantRatio.get().orElse(1.0f) - 1.0f) < 0.01f
                 && badSCutoff.get().orElse(0) == 0
