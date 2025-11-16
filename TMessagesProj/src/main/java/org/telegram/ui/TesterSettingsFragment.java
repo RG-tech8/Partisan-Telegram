@@ -58,7 +58,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class TesterSettingsFragment extends BaseFragment {
-    AbstractItem[] items = {
+    private final AbstractItem[] items = {
             new HeaderItem(this, "Update"),
             new SimpleEditableDataItem(this, "Update Channel Id",
                     () -> TesterSettings.updateChannelIdOverride.get().get() != 0 ? Long.toString(TesterSettings.updateChannelIdOverride.get().get()) : "",
