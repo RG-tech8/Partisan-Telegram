@@ -428,21 +428,6 @@ public class PartisanSettingsActivity extends BaseFragment {
         verifiedDetailRow = rowCount++;
     }
 
-    @Override
-    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (listView != null) {
-            ViewTreeObserver obs = listView.getViewTreeObserver();
-            obs.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
-                @Override
-                public boolean onPreDraw() {
-                    listView.getViewTreeObserver().removeOnPreDrawListener(this);
-                    return true;
-                }
-            });
-        }
-    }
-
     private static boolean fileProtectionEnabledForAnyAccount() {
         return getAccountsWithFileProtectionCount() > 0;
     }

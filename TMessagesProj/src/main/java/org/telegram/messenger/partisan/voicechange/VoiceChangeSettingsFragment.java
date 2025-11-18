@@ -3,7 +3,6 @@ package org.telegram.messenger.partisan.voicechange;
 import static org.telegram.messenger.LocaleController.getString;
 
 import android.Manifest;
-import android.content.Context;
 import android.content.pm.PackageManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
@@ -11,12 +10,8 @@ import android.media.MediaRecorder;
 import android.os.Build;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
-import android.view.ViewTreeObserver;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.Toast;
-
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DispatchQueue;
@@ -33,17 +28,12 @@ import org.telegram.messenger.partisan.ui.ButtonWithIconItem;
 import org.telegram.messenger.partisan.ui.DelimiterItem;
 import org.telegram.messenger.partisan.ui.DescriptionItem;
 import org.telegram.messenger.partisan.ui.HeaderItem;
-import org.telegram.messenger.partisan.ui.PartisanListAdapter;
+import org.telegram.messenger.partisan.ui.PartisanBaseFragment;
 import org.telegram.messenger.partisan.ui.RadioButtonItem;
 import org.telegram.messenger.partisan.ui.ToggleItem;
 import org.telegram.messenger.partisan.ui.ValuesSlideChooseItem;
-import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
-import org.telegram.ui.ActionBar.BaseFragment;
-import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCell;
-import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.RecyclerListView;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -55,17 +45,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class VoiceChangeSettingsFragment extends BaseFragment {
-    private PartisanListAdapter listAdapter;
-    private RecyclerListView listView;
-
-    private final AbstractItem aggressiveChangeLevelItem;
-    private final AbstractItem moderateChangeLevelItem;
-    private final AbstractItem recordItem;
-    private final AbstractItem playOriginalItem;
-    private final AbstractItem playChangedItem;
-    private final AbstractItem enableForIndividualAccountsItem;
-    private final AbstractItem benchmarkItem;
+public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
+    private AbstractItem aggressiveChangeLevelItem;
+    private AbstractItem moderateChangeLevelItem;
+    private AbstractItem recordItem;
+    private AbstractItem playOriginalItem;
+    private AbstractItem playChangedItem;
+    private AbstractItem enableForIndividualAccountsItem;
+    private AbstractItem benchmarkItem;
 
     private AudioRecord audioRecorder = null;
     private VoiceChanger voiceChanger = null;
@@ -82,102 +69,109 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
 
     private String benchmarkRatioText = "";
 
+    @Override
+    protected String getTitle() {
+        return getString(R.string.VoiceChange);
+    }
 
-    private final AbstractItem[] items = {
-            new ToggleItem(this, getString(R.string.Enable), VoiceChangeSettings.voiceChangeEnabled::getOrDefault, value -> {
-                VoiceChangeSettings.voiceChangeEnabled.set(value);
-                if (VoiceChangeSettings.areSettingsEmpty()) {
-                    new VoiceChangeSettingsGenerator().generateParameters(true);
-                }
-                listAdapter.notifyItemRangeChanged(0, listAdapter.getItemCount());
-            }),
-            new DelimiterItem(this),
-
-
-            new HeaderItem(this, getString(R.string.VoiceChangeLevel)),
-            aggressiveChangeLevelItem = new RadioButtonItem(this, getString(R.string.AggressiveVoiceChange),
-                    VoiceChangeSettings.aggressiveChangeLevel::getOrDefault,
-                    () -> changeAggressiveness(true))
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new DescriptionItem(this, getString(R.string.AggressiveVoiceChangeDescription)),
-            moderateChangeLevelItem = new RadioButtonItem(this, getString(R.string.AggressiveVoiceChange),
-                    () -> !VoiceChangeSettings.aggressiveChangeLevel.getOrDefault(),
-                    () -> changeAggressiveness(false))
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new DescriptionItem(this, getString(R.string.ModerateVoiceChangeDescription)),
-
-
-            new HeaderItem(this, getString(R.string.Quality)),
-            new ValuesSlideChooseItem(this,
-                    new String[]{getString(R.string.Quality480) /*Low*/, getString(R.string.Quality720) /*Medium*/, getString(R.string.Quality1080) /*High*/},
-                    VoiceChangeSettingsFragment::getQualityIndex,
-                    this::setQuality)
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new DescriptionItem(this, getString(R.string.VoiceChangeQualityDescription)),
-
-
-            new HeaderItem(this, getString(R.string.CheckVoiceChanging)),
-            recordItem = new RecordItem(this, () -> audioRecorder != null, this::onRecordClicked)
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            playChangedItem = new ButtonWithIconItem(this, getString(R.string.PlayChangedVoice), R.drawable.quantum_ic_play_arrow_white_24,
-                    view -> onPlayerButtonClicked(view, true))
-                    .addEnabledCondition(() -> isVoiceChangeEnabled() && changedOutputAudioBuffer != null),
-            playOriginalItem = new ButtonWithIconItem(this, getString(R.string.PlayNormalVoice), R.drawable.quantum_ic_play_arrow_white_24,
-                    view -> onPlayerButtonClicked(view, false))
-                    .addEnabledCondition(() -> isVoiceChangeEnabled() && originalOutputAudioBuffer != null),
-            new DescriptionItem(this, getString(R.string.CheckVoiceChangingDescription)),
-
-
-            new ButtonWithIconItem(this, getString(R.string.GenerateNewVoiceChangeParameters), R.drawable.quantum_ic_refresh_white_24,
-                    view -> {
+    @Override
+    protected AbstractItem[] createItems() {
+        return new AbstractItem[]{
+                new ToggleItem(this, getString(R.string.Enable), VoiceChangeSettings.voiceChangeEnabled::getOrDefault, value -> {
+                    VoiceChangeSettings.voiceChangeEnabled.set(value);
+                    if (VoiceChangeSettings.areSettingsEmpty()) {
                         new VoiceChangeSettingsGenerator().generateParameters(true);
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                        Toast.makeText(getContext(), getString(R.string.VoiceChanged), Toast.LENGTH_SHORT).show();
-                    })
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new DescriptionItem(this, getString(R.string.GenerateNewVoiceChangeParametersDescription)),
+                    }
+                    listAdapter.notifyItemRangeChanged(0, listAdapter.getItemCount());
+                }),
+                new DelimiterItem(this),
 
 
-            enableForIndividualAccountsItem = new ButtonItem(this, getString(R.string.EnableForIndividualAccounts),
-                    () -> {
-                        int enabledCount = getVoiceChangeEnabledAccounts().size();
-                        return enabledCount == UserConfig.getActivatedAccountsCount()
-                                ? getString(R.string.FilterAllChatsShort)
-                                : enabledCount + "/" + UserConfig.getActivatedAccountsCount();
-                    },
-                    view -> showEnableForIndividualAccountsDialog())
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new DelimiterItem(this),
+                new HeaderItem(this, getString(R.string.VoiceChangeLevel)),
+                aggressiveChangeLevelItem = new RadioButtonItem(this, getString(R.string.AggressiveVoiceChange),
+                        VoiceChangeSettings.aggressiveChangeLevel::getOrDefault,
+                        () -> changeAggressiveness(true))
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new DescriptionItem(this, getString(R.string.AggressiveVoiceChangeDescription)),
+                moderateChangeLevelItem = new RadioButtonItem(this, getString(R.string.AggressiveVoiceChange),
+                        () -> !VoiceChangeSettings.aggressiveChangeLevel.getOrDefault(),
+                        () -> changeAggressiveness(false))
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new DescriptionItem(this, getString(R.string.ModerateVoiceChangeDescription)),
 
 
-            new ToggleItem(this, getString(R.string.EnableForVoiceMessages),
-                    () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.VOICE_MESSAGE),
-                    value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.VOICE_MESSAGE))
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new ToggleItem(this, getString(R.string.EnableForVideoMessages),
-                    () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.VIDEO_MESSAGE),
-                    value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.VIDEO_MESSAGE))
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new ToggleItem(this, getString(R.string.EnableForVideoCalls),
-                    () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.CALL),
-                    value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.CALL))
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new DelimiterItem(this),
+                new HeaderItem(this, getString(R.string.Quality)),
+                new ValuesSlideChooseItem(this,
+                        new String[]{getString(R.string.Quality480) /*Low*/, getString(R.string.Quality720) /*Medium*/, getString(R.string.Quality1080) /*High*/},
+                        VoiceChangeSettingsFragment::getQualityIndex,
+                        this::setQuality)
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new DescriptionItem(this, getString(R.string.VoiceChangeQualityDescription)),
 
 
-            new ToggleItem(this, getString(R.string.ShowVoiceChangedNotification), VoiceChangeSettings.showVoiceChangedNotification)
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new DescriptionItem(this, getString(R.string.ShowVoiceChangedNotificationDescription)),
+                new HeaderItem(this, getString(R.string.CheckVoiceChanging)),
+                recordItem = new RecordItem(this, () -> audioRecorder != null, this::onRecordClicked)
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                playChangedItem = new ButtonWithIconItem(this, getString(R.string.PlayChangedVoice), R.drawable.quantum_ic_play_arrow_white_24,
+                        view -> onPlayerButtonClicked(view, true))
+                        .addEnabledCondition(() -> isVoiceChangeEnabled() && changedOutputAudioBuffer != null),
+                playOriginalItem = new ButtonWithIconItem(this, getString(R.string.PlayNormalVoice), R.drawable.quantum_ic_play_arrow_white_24,
+                        view -> onPlayerButtonClicked(view, false))
+                        .addEnabledCondition(() -> isVoiceChangeEnabled() && originalOutputAudioBuffer != null),
+                new DescriptionItem(this, getString(R.string.CheckVoiceChangingDescription)),
 
 
-            new ToggleItem(this, getString(R.string.WorksWithFakePasscodes), VoiceChangeSettings.voiceChangeWorksWithFakePasscode)
-                    .addEnabledCondition(this::isVoiceChangeEnabled),
-            new DelimiterItem(this).addCondition(TesterSettings::areTesterSettingsActivated),
+                new ButtonWithIconItem(this, getString(R.string.GenerateNewVoiceChangeParameters), R.drawable.quantum_ic_refresh_white_24,
+                        view -> {
+                            new VoiceChangeSettingsGenerator().generateParameters(true);
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                            Toast.makeText(getContext(), getString(R.string.VoiceChanged), Toast.LENGTH_SHORT).show();
+                        })
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new DescriptionItem(this, getString(R.string.GenerateNewVoiceChangeParametersDescription)),
 
-            benchmarkItem = new ButtonItem(this, "Benchmark", () -> benchmarkRatioText, view -> runBenchmark())
-                    .addCondition(TesterSettings::areTesterSettingsActivated)
-                    .addEnabledCondition(() -> isVoiceChangeEnabled() && originalOutputAudioBuffer != null),
-    };
+
+                enableForIndividualAccountsItem = new ButtonItem(this, getString(R.string.EnableForIndividualAccounts),
+                        () -> {
+                            int enabledCount = getVoiceChangeEnabledAccounts().size();
+                            return enabledCount == UserConfig.getActivatedAccountsCount()
+                                    ? getString(R.string.FilterAllChatsShort)
+                                    : enabledCount + "/" + UserConfig.getActivatedAccountsCount();
+                        },
+                        view -> showEnableForIndividualAccountsDialog())
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new DelimiterItem(this),
+
+
+                new ToggleItem(this, getString(R.string.EnableForVoiceMessages),
+                        () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.VOICE_MESSAGE),
+                        value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.VOICE_MESSAGE))
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new ToggleItem(this, getString(R.string.EnableForVideoMessages),
+                        () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.VIDEO_MESSAGE),
+                        value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.VIDEO_MESSAGE))
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new ToggleItem(this, getString(R.string.EnableForVideoCalls),
+                        () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.CALL),
+                        value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.CALL))
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new DelimiterItem(this),
+
+
+                new ToggleItem(this, getString(R.string.ShowVoiceChangedNotification), VoiceChangeSettings.showVoiceChangedNotification)
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new DescriptionItem(this, getString(R.string.ShowVoiceChangedNotificationDescription)),
+
+
+                new ToggleItem(this, getString(R.string.WorksWithFakePasscodes), VoiceChangeSettings.voiceChangeWorksWithFakePasscode)
+                        .addEnabledCondition(this::isVoiceChangeEnabled),
+                new DelimiterItem(this).addCondition(TesterSettings::areTesterSettingsActivated),
+
+                benchmarkItem = new ButtonItem(this, "Benchmark", () -> benchmarkRatioText, view -> runBenchmark())
+                        .addCondition(TesterSettings::areTesterSettingsActivated)
+                        .addEnabledCondition(() -> isVoiceChangeEnabled() && originalOutputAudioBuffer != null),
+        };
+    }
 
     private boolean isVoiceChangeEnabled() {
         return VoiceChangeSettings.voiceChangeEnabled.get().orElse(false);
@@ -381,18 +375,6 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
         }
     };
 
-    public VoiceChangeSettingsFragment() {
-        super();
-    }
-
-    @Override
-    public boolean onFragmentCreate() {
-        super.onFragmentCreate();
-        listAdapter = new PartisanListAdapter(items);
-        listAdapter.updateRows();
-        return true;
-    }
-
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
@@ -400,42 +382,6 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
             stopRecording();
         }
         stopPlaying();
-    }
-
-    @Override
-    public View createView(Context context) {
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(false);
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
-            @Override
-            public void onItemClick(int id) {
-                if (id == -1) {
-                    finishFragment();
-                }
-            }
-        });
-
-        fragmentView = new FrameLayout(context);
-        FrameLayout frameLayout = (FrameLayout) fragmentView;
-
-        actionBar.setTitle(getString(R.string.VoiceChange));
-        frameLayout.setTag(Theme.key_windowBackgroundGray);
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
-        listView = new RecyclerListView(context);
-        listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
-            @Override
-            public boolean supportsPredictiveItemAnimations() {
-                return false;
-            }
-        });
-        listView.setVerticalScrollBarEnabled(false);
-        listView.setItemAnimator(null);
-        listView.setLayoutAnimation(null);
-        frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        listAdapter.setContext(context);
-        listView.setAdapter(listAdapter);
-        listView.setOnItemClickListener(listAdapter::onItemClick);
-        return fragmentView;
     }
 
     private void startRecording() {
@@ -533,28 +479,5 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
         changedOutputAudioBuffer = null;
         originalOutputAudioBuffer = null;
         notifyPlayButtonsChanged();
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        if (listAdapter != null) {
-            listAdapter.notifyItemRangeChanged(0, listAdapter.getItemCount());
-        }
-    }
-
-    @Override
-    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (listView != null) {
-            ViewTreeObserver obs = listView.getViewTreeObserver();
-            obs.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
-                @Override
-                public boolean onPreDraw() {
-                    listView.getViewTreeObserver().removeOnPreDrawListener(this);
-                    return true;
-                }
-            });
-        }
     }
 }

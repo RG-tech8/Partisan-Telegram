@@ -1,13 +1,7 @@
 package org.telegram.ui;
 
-import android.content.Context;
 import android.util.Pair;
-import android.view.View;
-import android.view.ViewTreeObserver;
-import android.widget.FrameLayout;
 import android.widget.Toast;
-
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.SQLite.SQLiteDatabase;
@@ -32,7 +26,7 @@ import org.telegram.messenger.partisan.ui.AbstractItem;
 import org.telegram.messenger.partisan.ui.ButtonItem;
 import org.telegram.messenger.partisan.ui.DelimiterItem;
 import org.telegram.messenger.partisan.ui.HeaderItem;
-import org.telegram.messenger.partisan.ui.PartisanListAdapter;
+import org.telegram.messenger.partisan.ui.PartisanBaseFragment;
 import org.telegram.messenger.partisan.ui.ReadOnlyDataItem;
 import org.telegram.messenger.partisan.ui.SeekBarItem;
 import org.telegram.messenger.partisan.ui.SimpleEditableDataItem;
@@ -42,12 +36,7 @@ import org.telegram.messenger.partisan.verification.VerificationStorage;
 import org.telegram.messenger.partisan.verification.VerificationUpdatesChecker;
 import org.telegram.messenger.partisan.voicechange.VoiceChangeSettings;
 import org.telegram.tgnet.TLRPC;
-import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
-import org.telegram.ui.ActionBar.BaseFragment;
-import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.RecyclerListView;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,109 +46,117 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class TesterSettingsFragment extends BaseFragment {
-    private final AbstractItem[] items = {
-            new HeaderItem(this, "Update"),
-            new SimpleEditableDataItem(this, "Update Channel Id",
-                    () -> TesterSettings.updateChannelIdOverride.get().get() != 0 ? Long.toString(TesterSettings.updateChannelIdOverride.get().get()) : "",
-                    value -> TesterSettings.updateChannelIdOverride.set(Utilities.parseLong(value))
-            ),
-            new SimpleEditableDataItem(this, "Update Channel Username", TesterSettings.updateChannelUsernameOverride),
-            new ButtonItem(this, "Reset Update", view -> resetUpdate()),
-            new DelimiterItem(this),
+public class TesterSettingsFragment extends PartisanBaseFragment {
+    @Override
+    protected String getTitle() {
+        return "Tester settings";
+    }
+
+    @Override
+    protected AbstractItem[] createItems() {
+        return new AbstractItem[] {
+                new HeaderItem(this, "Update"),
+                new SimpleEditableDataItem(this, "Update Channel Id",
+                        () -> TesterSettings.updateChannelIdOverride.get().get() != 0 ? Long.toString(TesterSettings.updateChannelIdOverride.get().get()) : "",
+                        value -> TesterSettings.updateChannelIdOverride.set(Utilities.parseLong(value))
+                ),
+                new SimpleEditableDataItem(this, "Update Channel Username", TesterSettings.updateChannelUsernameOverride),
+                new ButtonItem(this, "Reset Update", view -> resetUpdate()),
+                new DelimiterItem(this),
 
 
-            new HeaderItem(this, "Verification"),
-            new ButtonItem(this, "Check Verification Updates", view -> checkVerificationUpdates()),
-            new ButtonItem(this, "Reset Verification Last Check Time", view -> resetVerificationLastCheckTime()),
-            new DelimiterItem(this),
+                new HeaderItem(this, "Verification"),
+                new ButtonItem(this, "Check Verification Updates", view -> checkVerificationUpdates()),
+                new ButtonItem(this, "Reset Verification Last Check Time", view -> resetVerificationLastCheckTime()),
+                new DelimiterItem(this),
 
 
-            new HeaderItem(this, "Secret Groups"),
-            new ToggleItem(this, "Show Sec. Chats From Groups", TesterSettings.showEncryptedChatsFromEncryptedGroups),
-            new ToggleItem(this, "Detailed Secret Group Member Status", TesterSettings.detailedEncryptedGroupMemberStatus),
-            new ReadOnlyDataItem(this, "Flood Wait",
-                    () -> "" + EncryptedGroupInnerChatStarter.getInstance(currentAccount).getFloodWaitRemaining()
-            ),
-            new DelimiterItem(this),
+                new HeaderItem(this, "Secret Groups"),
+                new ToggleItem(this, "Show Sec. Chats From Groups", TesterSettings.showEncryptedChatsFromEncryptedGroups),
+                new ToggleItem(this, "Detailed Secret Group Member Status", TesterSettings.detailedEncryptedGroupMemberStatus),
+                new ReadOnlyDataItem(this, "Flood Wait",
+                        () -> "" + EncryptedGroupInnerChatStarter.getInstance(currentAccount).getFloodWaitRemaining()
+                ),
+                new DelimiterItem(this),
 
 
-            new HeaderItem(this, "Voice Changing"),
-            new SimpleEditableDataItem(this, "Spectrum Distortion Params", VoiceChangeSettings.spectrumDistortionParams),
-            new HeaderItem(this, "World F0 Shift"),
-            new SeekBarItem(this, VoiceChangeSettings.f0Shift, 0.2, 2.01, 0.025),
-            new HeaderItem(this, "World Formant Ratio"),
-            new SeekBarItem(this, VoiceChangeSettings.formantRatio, 0.2, 2.01, 0.025),
-            new HeaderItem(this, "Bad S Threshold"),
-            new SeekBarItem(this, VoiceChangeSettings.badSThreshold, 0, 15000, 250),
-            new HeaderItem(this, "Bad S Cutoff"),
-            new SeekBarItem(this, VoiceChangeSettings.badSCutoff, 0, 15000, 250),
-            new HeaderItem(this, "Bad Sh Min Threshold"),
-            new SeekBarItem(this, VoiceChangeSettings.badShMinThreshold, 0, 15000, 250),
-            new HeaderItem(this, "Bad Sh Max Threshold"),
-            new SeekBarItem(this, VoiceChangeSettings.badShMaxThreshold, 0, 15000, 250),
-            new HeaderItem(this, "Bad Sh Cutoff"),
-            new SeekBarItem(this, VoiceChangeSettings.badShCutoff, 0, 15000, 250),
-            new ToggleItem(this, "Harvest", VoiceChangeSettings.formantShiftingHarvest),
-            new DelimiterItem(this),
+                new HeaderItem(this, "Voice Changing"),
+                new SimpleEditableDataItem(this, "Spectrum Distortion Params", VoiceChangeSettings.spectrumDistortionParams),
+                new HeaderItem(this, "World F0 Shift"),
+                new SeekBarItem(this, VoiceChangeSettings.f0Shift, 0.2, 2.01, 0.025),
+                new HeaderItem(this, "World Formant Ratio"),
+                new SeekBarItem(this, VoiceChangeSettings.formantRatio, 0.2, 2.01, 0.025),
+                new HeaderItem(this, "Bad S Threshold"),
+                new SeekBarItem(this, VoiceChangeSettings.badSThreshold, 0, 15000, 250),
+                new HeaderItem(this, "Bad S Cutoff"),
+                new SeekBarItem(this, VoiceChangeSettings.badSCutoff, 0, 15000, 250),
+                new HeaderItem(this, "Bad Sh Min Threshold"),
+                new SeekBarItem(this, VoiceChangeSettings.badShMinThreshold, 0, 15000, 250),
+                new HeaderItem(this, "Bad Sh Max Threshold"),
+                new SeekBarItem(this, VoiceChangeSettings.badShMaxThreshold, 0, 15000, 250),
+                new HeaderItem(this, "Bad Sh Cutoff"),
+                new SeekBarItem(this, VoiceChangeSettings.badShCutoff, 0, 15000, 250),
+                new ToggleItem(this, "Harvest", VoiceChangeSettings.formantShiftingHarvest),
+                new DelimiterItem(this),
 
 
-            new HeaderItem(this, "Other Settings"),
-            new ToggleItem(this, "Show Terminate Sessions Warning",
-                    () -> SharedConfig.showSessionsTerminateActionWarning,
-                    value -> SharedConfig.showSessionsTerminateActionWarning = value
-            ),
-            new ToggleItem(this, "Show Plain Backup", TesterSettings.showPlainBackup),
-            new ToggleItem(this, "Disable Premium", TesterSettings.premiumDisabled),
-            new ToggleItem(this, "Show Hide Dialog Is Not Safe Warning",
-                    () -> SharedConfig.showHideDialogIsNotSafeWarning,
-                    value -> SharedConfig.showHideDialogIsNotSafeWarning = value
-            ),
-            new SimpleEditableDataItem(this, "Phone Override", TesterSettings.phoneOverride)
-                    .addCondition(() -> SharedConfig.activatedTesterSettingType >= 2),
-            new ButtonItem(this, "Reset Security Issues", view -> {
-                setSecurityIssues(new HashSet<>());
-                SecurityChecker.checkSecurityIssuesAndSave(getParentActivity(), getCurrentAccount(), true);
-                Toast.makeText(getParentActivity(), "Reset", Toast.LENGTH_SHORT).show();
-            }),
-            new ButtonItem(this, "Activate All Security Issues", view -> {
-                setSecurityIssues(new HashSet<>(Arrays.asList(SecurityIssue.values())));
-                Toast.makeText(getParentActivity(), "Activated", Toast.LENGTH_SHORT).show();
-            }),
-            new SimpleEditableDataItem(this, "Saved Channels",
-                    this::getSavedChannelsValue,
-                    this::setSavedChannels,
-                    ()  -> Integer.toString(getUserConfig().savedChannels.size())
-            ).setMultiline(),
-            new ToggleItem(this, "Force Allow Screenshots", TesterSettings.forceAllowScreenshots)
-                    .addCondition(() -> SharedConfig.activatedTesterSettingType >= 2),
-            new ToggleItem(this, "Save Logcat After Restart", TesterSettings.saveLogcatAfterRestart),
-            new ToggleItem(this, "Clear Logs With Cache", TesterSettings.clearLogsWithCache),
-            new ToggleItem(this, "Force Search During Deletion", TesterSettings.forceSearchDuringDeletion),
-            new ToggleItem(this, "More Timer Values", TesterSettings.moreTimerValues),
-            new DelimiterItem(this),
+                new HeaderItem(this, "Other Settings"),
+                new ToggleItem(this, "Show Terminate Sessions Warning",
+                        () -> SharedConfig.showSessionsTerminateActionWarning,
+                        value -> SharedConfig.showSessionsTerminateActionWarning = value
+                ),
+                new ToggleItem(this, "Show Plain Backup", TesterSettings.showPlainBackup),
+                new ToggleItem(this, "Disable Premium", TesterSettings.premiumDisabled),
+                new ToggleItem(this, "Show Hide Dialog Is Not Safe Warning",
+                        () -> SharedConfig.showHideDialogIsNotSafeWarning,
+                        value -> SharedConfig.showHideDialogIsNotSafeWarning = value
+                ),
+                new SimpleEditableDataItem(this, "Phone Override", TesterSettings.phoneOverride)
+                        .addCondition(() -> SharedConfig.activatedTesterSettingType >= 2),
+                new ButtonItem(this, "Reset Security Issues", view -> {
+                    setSecurityIssues(new HashSet<>());
+                    SecurityChecker.checkSecurityIssuesAndSave(getParentActivity(), getCurrentAccount(), true);
+                    Toast.makeText(getParentActivity(), "Reset", Toast.LENGTH_SHORT).show();
+                }),
+                new ButtonItem(this, "Activate All Security Issues", view -> {
+                    setSecurityIssues(new HashSet<>(Arrays.asList(SecurityIssue.values())));
+                    Toast.makeText(getParentActivity(), "Activated", Toast.LENGTH_SHORT).show();
+                }),
+                new SimpleEditableDataItem(this, "Saved Channels",
+                        this::getSavedChannelsValue,
+                        this::setSavedChannels,
+                        ()  -> Integer.toString(getUserConfig().savedChannels.size())
+                ).setMultiline(),
+                new ToggleItem(this, "Force Allow Screenshots", TesterSettings.forceAllowScreenshots)
+                        .addCondition(() -> SharedConfig.activatedTesterSettingType >= 2),
+                new ToggleItem(this, "Save Logcat After Restart", TesterSettings.saveLogcatAfterRestart),
+                new ToggleItem(this, "Clear Logs With Cache", TesterSettings.clearLogsWithCache),
+                new ToggleItem(this, "Force Search During Deletion", TesterSettings.forceSearchDuringDeletion),
+                new ToggleItem(this, "More Timer Values", TesterSettings.moreTimerValues),
+                new DelimiterItem(this),
 
 
-            new HeaderItem(this, "Stats"),
-            new ReadOnlyDataItem(this, "Dialogs Count (all type)",
-                    createDialogsCountFormatter(did -> true)
-            ),
-            new ReadOnlyDataItem(this, "Channel Count",
-                    createDialogsCountFormatter(did -> ChatObject.isChannelAndNotMegaGroup(-did, currentAccount))
-            ),
-            new ReadOnlyDataItem(this, "Chat (Groups) Count",
-                    createDialogsCountFormatter(did -> did < 0 && !ChatObject.isChannelAndNotMegaGroup(-did, currentAccount))
-            ),
-            new ReadOnlyDataItem(this, "User Chat Count",
-                    createDialogsCountFormatter(did -> did > 0)
-            ),
-            new ReadOnlyDataItem(this, "Memory DB size",
-                    () -> getMemoryDbSize() != null ? AndroidUtilities.formatFileSize(getMemoryDbSize()) : "error")
-                    .setOnClickListener(this::showMemoryDialog)
-                    .addCondition(() -> getMessagesStorage().fileProtectionEnabled()),
-            new ReadOnlyDataItem(this, "Account num", () -> Integer.toString(currentAccount)),
-            new DelimiterItem(this),
-    };
+                new HeaderItem(this, "Stats"),
+                new ReadOnlyDataItem(this, "Dialogs Count (all type)",
+                        createDialogsCountFormatter(did -> true)
+                ),
+                new ReadOnlyDataItem(this, "Channel Count",
+                        createDialogsCountFormatter(did -> ChatObject.isChannelAndNotMegaGroup(-did, currentAccount))
+                ),
+                new ReadOnlyDataItem(this, "Chat (Groups) Count",
+                        createDialogsCountFormatter(did -> did < 0 && !ChatObject.isChannelAndNotMegaGroup(-did, currentAccount))
+                ),
+                new ReadOnlyDataItem(this, "User Chat Count",
+                        createDialogsCountFormatter(did -> did > 0)
+                ),
+                new ReadOnlyDataItem(this, "Memory DB size",
+                        () -> getMemoryDbSize() != null ? AndroidUtilities.formatFileSize(getMemoryDbSize()) : "error")
+                        .setOnClickListener(this::showMemoryDialog)
+                        .addCondition(() -> getMessagesStorage().fileProtectionEnabled()),
+                new ReadOnlyDataItem(this, "Account num", () -> Integer.toString(currentAccount)),
+                new DelimiterItem(this),
+        };
+    }
 
     private Supplier<String> createDialogsCountFormatter(Predicate<Long> condition) {
         return () -> {
@@ -304,80 +301,6 @@ public class TesterSettingsFragment extends BaseFragment {
             }
         }
         return tableSizes;
-    }
-
-    private PartisanListAdapter listAdapter;
-    private RecyclerListView listView;
-
-    public TesterSettingsFragment() {
-        super();
-    }
-
-    @Override
-    public boolean onFragmentCreate() {
-        super.onFragmentCreate();
-        listAdapter = new PartisanListAdapter(items);
-        listAdapter.updateRows();
-        return true;
-    }
-
-    @Override
-    public View createView(Context context) {
-        actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setAllowOverlayTitle(false);
-        actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
-            @Override
-            public void onItemClick(int id) {
-                if (id == -1) {
-                    finishFragment();
-                }
-            }
-        });
-
-        fragmentView = new FrameLayout(context);
-        FrameLayout frameLayout = (FrameLayout) fragmentView;
-
-        actionBar.setTitle("Tester settings");
-        frameLayout.setTag(Theme.key_windowBackgroundGray);
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
-        listView = new RecyclerListView(context);
-        listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
-            @Override
-            public boolean supportsPredictiveItemAnimations() {
-                return false;
-            }
-        });
-        listView.setVerticalScrollBarEnabled(false);
-        listView.setItemAnimator(null);
-        listView.setLayoutAnimation(null);
-        frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        listAdapter.setContext(context);
-        listView.setAdapter(listAdapter);
-        listView.setOnItemClickListener(listAdapter::onItemClick);
-        return fragmentView;
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        if (listAdapter != null) {
-            listAdapter.notifyDataSetChanged();
-        }
-    }
-
-    @Override
-    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (listView != null) {
-            ViewTreeObserver obs = listView.getViewTreeObserver();
-            obs.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
-                @Override
-                public boolean onPreDraw() {
-                    listView.getViewTreeObserver().removeOnPreDrawListener(this);
-                    return true;
-                }
-            });
-        }
     }
 
     private List<TLRPC.Dialog> getAllDialogs() {
