@@ -5,6 +5,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -73,5 +74,14 @@ public class VoiceChangerUtils {
 
     private static boolean isAnyVoiceChangerRunning(VoiceChangeType type) {
         return runningVoiceChangers.containsValue(type);
+    }
+
+    public static byte[] getBytesFromByteBuffer(ByteBuffer buffer, int len) {
+        byte[] byteArray = new byte[len];
+        int originalPosition = buffer.position();
+        buffer.position(0);
+        buffer.get(byteArray, 0, len);
+        buffer.position(originalPosition);
+        return byteArray;
     }
 }

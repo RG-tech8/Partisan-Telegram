@@ -2283,7 +2283,7 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
                         org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger voiceChanger = VideoRecorder.this.voiceChanger;
                         if (voiceChanger != null) {
                             if (readResult > 0) {
-                                voiceChanger.write(java.util.Arrays.copyOf(byteBuffer.array(), readResult));
+                                voiceChanger.write(org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.getBytesFromByteBuffer(byteBuffer, readResult));
                             }
                             byteBuffer.clear();
                             byte[] changedVoice = voiceChanger.readBytesExactCount(readResult);

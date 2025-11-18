@@ -335,8 +335,7 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
                 ByteBuffer changedBuffer = null;
                 if (voiceChanger != null) {
                     if (len > 0) {
-                        byte[] byteArray = java.util.Arrays.copyOf(buffer.array(), len);
-                        voiceChanger.write(byteArray);
+                        voiceChanger.write(VoiceChangerUtils.getBytesFromByteBuffer(buffer, len));
                     }
                     byte[] changedVoice = voiceChanger.readAll();
                     if (changedVoice.length == 0) {
@@ -367,8 +366,7 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
 
         private void writeToOutputBuffer(ByteArrayOutputStream outputBuffer, ByteBuffer buffer, int len) {
             try {
-                byte[] byteArray = java.util.Arrays.copyOf(buffer.array(), len);
-                outputBuffer.write(byteArray);
+                outputBuffer.write(VoiceChangerUtils.getBytesFromByteBuffer(buffer, len));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
