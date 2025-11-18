@@ -8,20 +8,25 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Cells.ShadowSectionCell;
+import org.telegram.ui.Cells.TextInfoPrivacyCell;
 
-public class DelimiterItem extends AbstractItem {
-    public DelimiterItem(BaseFragment fragment) {
-        super(fragment, ItemType.DELIMITER.ordinal());
+public class DescriptionItem extends AbstractItem {
+    private final String text;
+
+    public DescriptionItem(BaseFragment fragment, String text) {
+        super(fragment, ItemType.DESCRIPTION.ordinal());
+        this.text = text;
     }
 
     public static View createView(Context context) {
-        return AbstractItem.initializeView(new ShadowSectionCell(context));
+        View view = new TextInfoPrivacyCell(context);
+        view.setBackground(Theme.getThemedDrawable(context, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
+        return view;
     }
 
     @Override
     public void onBindViewHolderInternal(RecyclerView.ViewHolder holder, int position) {
-        holder.itemView.setBackground(Theme.getThemedDrawable(fragment.getContext(), R.drawable.greydivider, fragment.getThemedColor(Theme.key_windowBackgroundGrayShadow)));
+        ((TextInfoPrivacyCell) holder.itemView).setText(text);
     }
 
     @Override

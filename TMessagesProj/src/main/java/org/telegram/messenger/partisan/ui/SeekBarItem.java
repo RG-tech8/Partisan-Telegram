@@ -42,7 +42,7 @@ public class SeekBarItem extends AbstractItem {
     }
 
     @Override
-    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+    public void onBindViewHolderInternal(RecyclerView.ViewHolder holder, int position) {
         SeekBarCell seekBarCell = (SeekBarCell) holder.itemView;
         seekBarCell.setValues(startValue, endValue, step, getValue.get());
         seekBarCell.setDelegate(value -> setValue.accept((float)(double)value));
@@ -53,7 +53,7 @@ public class SeekBarItem extends AbstractItem {
     public void onClick(View view) {}
 
     @Override
-    public boolean enabled() {
+    public boolean isEnabledInternal() {
         return true;
     }
 }

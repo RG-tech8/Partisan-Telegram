@@ -1,6 +1,7 @@
 package org.telegram.messenger.partisan.ui;
 
 import android.content.Context;
+import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
@@ -8,32 +9,40 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.ui.Components.RecyclerListView;
 
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 public class PartisanListAdapter extends RecyclerListView.SelectionAdapter {
-    private final Context context;
     private final AbstractItem[] items;
-    private final Supplier<Integer> rowCountSupplier;
+    private Context context;
+    private int rowCount;
 
-    public PartisanListAdapter(Context context, AbstractItem[] items, Supplier<Integer> rowCountSupplier) {
-        this.context = context;
+    public PartisanListAdapter(AbstractItem[] items) {
         this.items = items;
-        this.rowCountSupplier = rowCountSupplier;
+    }
+
+    public void setContext(Context context) {
+        this.context = context;
+    }
+
+    public void updateRows() {
+        rowCount = 0;
+        for (AbstractItem item : items) {
+            if (item.needAddRow()) {
+                item.setPosition(rowCount++);
+            }
+        }
     }
 
     @Override
     public boolean isEnabled(RecyclerView.ViewHolder holder) {
-        for (AbstractItem item : items) {
-            if (item.positionMatch(holder.getAdapterPosition())) {
-                return item.enabled();
-            }
-        }
-        return true;
+        boolean[] enabled = new boolean[]{ true };
+        doForItemAtPosition(holder.getAdapterPosition(), item -> enabled[0] = item.isEnabled());
+        return enabled[0];
     }
 
     @Override
     public int getItemCount() {
-        return rowCountSupplier.get();
+        return rowCount;
     }
 
     @Override
@@ -44,22 +53,35 @@ public class PartisanListAdapter extends RecyclerListView.SelectionAdapter {
     }
 
     @Override
-    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-        for (AbstractItem item : items) {
-            if (item.positionMatch(position)) {
-                item.onBindViewHolder(holder, position);
-                break;
-            }
-        }
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        doForItemAtPosition(position, item -> item.onBindViewHolder(holder, position));
     }
 
     @Override
     public int getItemViewType(int position) {
+        int[] viewType = new int[]{ 0 };
+        doForItemAtPosition(position, item -> viewType[0] = item.getViewType());
+        return viewType[0];
+    }
+
+    @Override
+    public void onViewAttachedToWindow(RecyclerView.ViewHolder holder) {
+        doForItemAtPosition(holder.getAdapterPosition(), item -> item.onViewAttachedToWindow(holder));
+    }
+
+    public void onItemClick(View view, int position) {
+        if (!view.isEnabled()) {
+            return;
+        }
+        doForItemAtPosition(position, item -> item.onClick(view));
+    }
+
+    private void doForItemAtPosition(int position, Consumer<AbstractItem> action) {
         for (AbstractItem item : items) {
             if (item.positionMatch(position)) {
-                return item.getViewType();
+                action.accept(item);
+                break;
             }
         }
-        return 0;
     }
 }

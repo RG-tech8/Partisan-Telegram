@@ -7,7 +7,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Cells.HeaderCell;
-import org.telegram.ui.Cells.TextCheckCell;
 
 public class HeaderItem extends AbstractItem {
     private final String text;
@@ -22,15 +21,17 @@ public class HeaderItem extends AbstractItem {
     }
 
     @Override
-    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-        ((HeaderCell) holder.itemView).setText(text);
+    public void onBindViewHolderInternal(RecyclerView.ViewHolder holder, int position) {
+        HeaderCell headerCell = (HeaderCell) holder.itemView;
+        headerCell.setHeight(46);
+        headerCell.setText(text);
     }
 
     @Override
     public void onClick(View view) {}
 
     @Override
-    public boolean enabled() {
+    public boolean isEnabledInternal() {
         return false;
     }
 }

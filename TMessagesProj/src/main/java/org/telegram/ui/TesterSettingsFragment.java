@@ -65,13 +65,13 @@ public class TesterSettingsFragment extends BaseFragment {
                     value -> TesterSettings.updateChannelIdOverride.set(Utilities.parseLong(value))
             ),
             new SimpleEditableDataItem(this, "Update Channel Username", TesterSettings.updateChannelUsernameOverride),
-            new ButtonItem(this, "Reset Update", this::resetUpdate),
+            new ButtonItem(this, "Reset Update", view -> resetUpdate()),
             new DelimiterItem(this),
 
 
             new HeaderItem(this, "Verification"),
-            new ButtonItem(this, "Check Verification Updates", this::checkVerificationUpdates),
-            new ButtonItem(this, "Reset Verification Last Check Time", this::resetVerificationLastCheckTime),
+            new ButtonItem(this, "Check Verification Updates", view -> checkVerificationUpdates()),
+            new ButtonItem(this, "Reset Verification Last Check Time", view -> resetVerificationLastCheckTime()),
             new DelimiterItem(this),
 
 
@@ -117,12 +117,12 @@ public class TesterSettingsFragment extends BaseFragment {
             ),
             new SimpleEditableDataItem(this, "Phone Override", TesterSettings.phoneOverride)
                     .addCondition(() -> SharedConfig.activatedTesterSettingType >= 2),
-            new ButtonItem(this, "Reset Security Issues", () -> {
+            new ButtonItem(this, "Reset Security Issues", view -> {
                 setSecurityIssues(new HashSet<>());
                 SecurityChecker.checkSecurityIssuesAndSave(getParentActivity(), getCurrentAccount(), true);
                 Toast.makeText(getParentActivity(), "Reset", Toast.LENGTH_SHORT).show();
             }),
-            new ButtonItem(this, "Activate All Security Issues", () -> {
+            new ButtonItem(this, "Activate All Security Issues", view -> {
                 setSecurityIssues(new HashSet<>(Arrays.asList(SecurityIssue.values())));
                 Toast.makeText(getParentActivity(), "Activated", Toast.LENGTH_SHORT).show();
             }),
@@ -309,8 +309,6 @@ public class TesterSettingsFragment extends BaseFragment {
     private PartisanListAdapter listAdapter;
     private RecyclerListView listView;
 
-    private int rowCount;
-
     public TesterSettingsFragment() {
         super();
     }
@@ -318,7 +316,8 @@ public class TesterSettingsFragment extends BaseFragment {
     @Override
     public boolean onFragmentCreate() {
         super.onFragmentCreate();
-        updateRows();
+        listAdapter = new PartisanListAdapter(items);
+        listAdapter.updateRows();
         return true;
     }
 
@@ -352,16 +351,9 @@ public class TesterSettingsFragment extends BaseFragment {
         listView.setItemAnimator(null);
         listView.setLayoutAnimation(null);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        listView.setAdapter(listAdapter = new PartisanListAdapter(context, items, () -> rowCount));
-        listView.setOnItemClickListener((view, position) -> {
-            for (AbstractItem item : items) {
-                if (item.positionMatch(position)) {
-                    item.onClick(view);
-                    break;
-                }
-            }
-        });
-
+        listAdapter.setContext(context);
+        listView.setAdapter(listAdapter);
+        listView.setOnItemClickListener(listAdapter::onItemClick);
         return fragmentView;
     }
 
@@ -370,15 +362,6 @@ public class TesterSettingsFragment extends BaseFragment {
         super.onResume();
         if (listAdapter != null) {
             listAdapter.notifyDataSetChanged();
-        }
-    }
-
-    private void updateRows() {
-        rowCount = 0;
-        for (AbstractItem item : items) {
-            if (item.needAddRow()) {
-                item.setPosition(rowCount++);
-            }
         }
     }
 

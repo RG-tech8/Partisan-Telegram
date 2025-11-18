@@ -26,7 +26,7 @@ public class ReadOnlyDataItem extends AbstractItem {
     }
 
     @Override
-    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+    public void onBindViewHolderInternal(RecyclerView.ViewHolder holder, int position) {
         ((TextSettingsCell) holder.itemView).setTextAndValue(text, getValue.get(), true);
     }
 
@@ -38,7 +38,7 @@ public class ReadOnlyDataItem extends AbstractItem {
     }
 
     @Override
-    public boolean enabled() {
+    public boolean isEnabledInternal() {
         return onClick != null;
     }
 }

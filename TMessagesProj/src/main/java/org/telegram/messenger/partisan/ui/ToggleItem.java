@@ -18,7 +18,7 @@ public class ToggleItem extends AbstractItem {
     private final Consumer<Boolean> setValue;
 
     public ToggleItem(BaseFragment fragment, String text, BooleanSetting booleanSetting) {
-        this(fragment, text, () -> booleanSetting.get().get(), booleanSetting::set);
+        this(fragment, text, booleanSetting::getOrDefault, booleanSetting::set);
     }
 
     public ToggleItem(BaseFragment fragment, String text, Supplier<Boolean> getValue, Consumer<Boolean> setValue) {
@@ -33,8 +33,10 @@ public class ToggleItem extends AbstractItem {
     }
 
     @Override
-    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-        ((TextCheckCell) holder.itemView).setTextAndCheck(text, getValue.get(), true);
+    public void onBindViewHolderInternal(RecyclerView.ViewHolder holder, int position) {
+        TextCheckCell textCell = (TextCheckCell) holder.itemView;
+        textCell.setEnabled(isEnabled(), null);
+        textCell.setTextAndCheck(text, getValue.get(), true);
     }
 
     @Override
@@ -44,7 +46,7 @@ public class ToggleItem extends AbstractItem {
     }
 
     @Override
-    public boolean enabled() {
+    public boolean isEnabledInternal() {
         return true;
     }
 }

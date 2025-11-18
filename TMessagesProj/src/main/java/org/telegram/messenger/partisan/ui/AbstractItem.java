@@ -14,10 +14,15 @@ public abstract class AbstractItem {
     private final int viewType;
     protected final BaseFragment fragment;
     private Supplier<Boolean> condition = null;
+    private Supplier<Boolean> enabledCondition = null;
 
     protected AbstractItem(BaseFragment fragment, int viewType) {
         this.fragment = fragment;
         this.viewType = viewType;
+    }
+
+    public int getPosition() {
+        return position;
     }
 
     public void setPosition(int position) {
@@ -37,6 +42,11 @@ public abstract class AbstractItem {
         return this;
     }
 
+    public AbstractItem addEnabledCondition(Supplier<Boolean> enabledCondition) {
+        this.enabledCondition = enabledCondition;
+        return this;
+    }
+
     public boolean needAddRow() {
         if (condition != null) {
             return condition.get();
@@ -49,7 +59,31 @@ public abstract class AbstractItem {
         return view;
     }
 
-    public abstract void onBindViewHolder(RecyclerView.ViewHolder holder, int position);
+    public boolean isEnabled() {
+        if (enabledCondition != null) {
+            return enabledCondition.get();
+        } else {
+            return isEnabledInternal();
+        }
+    }
+
+    public void onViewAttachedToWindow(RecyclerView.ViewHolder holder) {
+        setEnabled(holder.itemView, isEnabled());
+    }
+
+    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+         View view = holder.itemView;
+         if (view.isEnabled() != isEnabled()) {
+             setEnabled(view, isEnabled());
+         }
+         onBindViewHolderInternal(holder, position);
+    }
+
+    protected void setEnabled(View view, boolean enabled) {
+        view.setEnabled(enabled);
+    }
+
+    protected abstract void onBindViewHolderInternal(RecyclerView.ViewHolder holder, int position);
     public abstract void onClick(View view);
-    public abstract boolean enabled();
+    protected abstract boolean isEnabledInternal();
 }

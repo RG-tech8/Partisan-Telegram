@@ -11,15 +11,12 @@ import android.media.MediaRecorder;
 import android.os.Build;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DispatchQueue;
@@ -28,21 +25,23 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.partisan.PartisanLog;
-import org.telegram.messenger.partisan.PartisanSlideChooseView;
 import org.telegram.messenger.partisan.Utils;
 import org.telegram.messenger.partisan.settings.TesterSettings;
+import org.telegram.messenger.partisan.ui.AbstractItem;
+import org.telegram.messenger.partisan.ui.ButtonItem;
+import org.telegram.messenger.partisan.ui.ButtonWithIconItem;
+import org.telegram.messenger.partisan.ui.DelimiterItem;
+import org.telegram.messenger.partisan.ui.DescriptionItem;
+import org.telegram.messenger.partisan.ui.HeaderItem;
+import org.telegram.messenger.partisan.ui.PartisanListAdapter;
+import org.telegram.messenger.partisan.ui.RadioButtonItem;
+import org.telegram.messenger.partisan.ui.ToggleItem;
+import org.telegram.messenger.partisan.ui.ValuesSlideChooseItem;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.ActionBar.ThemeDescription;
-import org.telegram.ui.Cells.HeaderCell;
-import org.telegram.ui.Cells.ShadowSectionCell;
-import org.telegram.ui.Cells.SimpleRadioButtonCell;
 import org.telegram.ui.Cells.TextCell;
-import org.telegram.ui.Cells.TextCheckCell;
-import org.telegram.ui.Cells.TextInfoPrivacyCell;
-import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 
@@ -51,16 +50,22 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class VoiceChangeSettingsFragment extends BaseFragment {
-
-    private ListAdapter listAdapter;
+    private PartisanListAdapter listAdapter;
     private RecyclerListView listView;
+
+    private final AbstractItem aggressiveChangeLevelItem;
+    private final AbstractItem moderateChangeLevelItem;
+    private final AbstractItem recordItem;
+    private final AbstractItem playOriginalItem;
+    private final AbstractItem playChangedItem;
+    private final AbstractItem enableForIndividualAccountsItem;
+    private final AbstractItem benchmarkItem;
 
     private AudioRecord audioRecorder = null;
     private VoiceChanger voiceChanger = null;
@@ -75,41 +80,251 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
     private static final int sampleRate = 48000;
     private static final int recordBufferSize = 1280;
 
-    private String benchmarkRatioText = null;
+    private String benchmarkRatioText = "";
 
-    private int rowCount;
 
-    private int enableRow = -1;
-    private int enableDelimiterRow = -1;
-    private int changeLevelHeaderRow = -1;
-    private int aggressiveChangeLevelRow = -1;
-    private int aggressiveChangeLevelDescriptionRow = -1;
-    private int moderateChangeLevelRow = -1;
-    private int moderateChangeLevelDescriptionRow = -1;
-    private int qualityHeaderRow = -1;
-    private int qualityRow = -1;
-    private int qualityDescriptionRow = -1;
-    private int checkVoiceChangingHeaderRow = -1;
-    private int recordRow = -1;
-    private int playChangedRow = -1;
-    private int playOriginalRow = -1;
-    private int checkVoiceChangingDescriptionRow = -1;
-    private int generateNewParametersRow = -1;
-    private int generateNewParametersDescriptionRow = -1;
-    private int enableForIndividualAccountsRow = -1;
-    private int enableForIndividualAccountsDelimiterRow = -1;
-    private int enableForVoiceMessagesRow = -1;
-    private int enableForVideoMessagesRow = -1;
-    private int enableForCallsRow = -1;
-    private int enableForTypesDelimiterRow = -1;
-    private int showVoiceChangedNotificationRow = -1;
-    private int showVoiceChangedNotificationDescriptionRow = -1;
-    private int worksWithFakePasscodesRow = -1;
-    private int worksWithFakePasscodesDelimiterRow = -1;
-    private int benchmarkRow = -1;
+    private final AbstractItem[] items = {
+            new ToggleItem(this, getString(R.string.Enable), VoiceChangeSettings.voiceChangeEnabled::getOrDefault, value -> {
+                VoiceChangeSettings.voiceChangeEnabled.set(value);
+                if (VoiceChangeSettings.areSettingsEmpty()) {
+                    new VoiceChangeSettingsGenerator().generateParameters(true);
+                }
+                listAdapter.notifyItemRangeChanged(0, listAdapter.getItemCount());
+            }),
+            new DelimiterItem(this),
 
-    private TextCell recordCell = null;
-    private TextSettingsCell benchmarkCell = null;
+
+            new HeaderItem(this, getString(R.string.VoiceChangeLevel)),
+            aggressiveChangeLevelItem = new RadioButtonItem(this, getString(R.string.AggressiveVoiceChange),
+                    VoiceChangeSettings.aggressiveChangeLevel::getOrDefault,
+                    () -> changeAggressiveness(true))
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new DescriptionItem(this, getString(R.string.AggressiveVoiceChangeDescription)),
+            moderateChangeLevelItem = new RadioButtonItem(this, getString(R.string.AggressiveVoiceChange),
+                    () -> !VoiceChangeSettings.aggressiveChangeLevel.getOrDefault(),
+                    () -> changeAggressiveness(false))
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new DescriptionItem(this, getString(R.string.ModerateVoiceChangeDescription)),
+
+
+            new HeaderItem(this, getString(R.string.Quality)),
+            new ValuesSlideChooseItem(this,
+                    new String[]{getString(R.string.Quality480) /*Low*/, getString(R.string.Quality720) /*Medium*/, getString(R.string.Quality1080) /*High*/},
+                    VoiceChangeSettingsFragment::getQualityIndex,
+                    this::setQuality)
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new DescriptionItem(this, getString(R.string.VoiceChangeQualityDescription)),
+
+
+            new HeaderItem(this, getString(R.string.CheckVoiceChanging)),
+            recordItem = new RecordItem(this, () -> audioRecorder != null, this::onRecordClicked)
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            playChangedItem = new ButtonWithIconItem(this, getString(R.string.PlayChangedVoice), R.drawable.quantum_ic_play_arrow_white_24,
+                    view -> onPlayerButtonClicked(view, true))
+                    .addEnabledCondition(() -> isVoiceChangeEnabled() && changedOutputAudioBuffer != null),
+            playOriginalItem = new ButtonWithIconItem(this, getString(R.string.PlayNormalVoice), R.drawable.quantum_ic_play_arrow_white_24,
+                    view -> onPlayerButtonClicked(view, false))
+                    .addEnabledCondition(() -> isVoiceChangeEnabled() && originalOutputAudioBuffer != null),
+            new DescriptionItem(this, getString(R.string.CheckVoiceChangingDescription)),
+
+
+            new ButtonWithIconItem(this, getString(R.string.GenerateNewVoiceChangeParameters), R.drawable.quantum_ic_refresh_white_24,
+                    view -> {
+                        new VoiceChangeSettingsGenerator().generateParameters(true);
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                        Toast.makeText(getContext(), getString(R.string.VoiceChanged), Toast.LENGTH_SHORT).show();
+                    })
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new DescriptionItem(this, getString(R.string.GenerateNewVoiceChangeParametersDescription)),
+
+
+            enableForIndividualAccountsItem = new ButtonItem(this, getString(R.string.EnableForIndividualAccounts),
+                    () -> {
+                        int enabledCount = getVoiceChangeEnabledAccounts().size();
+                        return enabledCount == UserConfig.getActivatedAccountsCount()
+                                ? getString(R.string.FilterAllChatsShort)
+                                : enabledCount + "/" + UserConfig.getActivatedAccountsCount();
+                    },
+                    view -> showEnableForIndividualAccountsDialog())
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new DelimiterItem(this),
+
+
+            new ToggleItem(this, getString(R.string.EnableForVoiceMessages),
+                    () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.VOICE_MESSAGE),
+                    value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.VOICE_MESSAGE))
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new ToggleItem(this, getString(R.string.EnableForVideoMessages),
+                    () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.VIDEO_MESSAGE),
+                    value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.VIDEO_MESSAGE))
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new ToggleItem(this, getString(R.string.EnableForVideoCalls),
+                    () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.CALL),
+                    value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.CALL))
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new DelimiterItem(this),
+
+
+            new ToggleItem(this, getString(R.string.ShowVoiceChangedNotification), VoiceChangeSettings.showVoiceChangedNotification)
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new DescriptionItem(this, getString(R.string.ShowVoiceChangedNotificationDescription)),
+
+
+            new ToggleItem(this, getString(R.string.WorksWithFakePasscodes), VoiceChangeSettings.voiceChangeWorksWithFakePasscode)
+                    .addEnabledCondition(this::isVoiceChangeEnabled),
+            new DelimiterItem(this).addCondition(TesterSettings::areTesterSettingsActivated),
+
+            benchmarkItem = new ButtonItem(this, "Benchmark", () -> benchmarkRatioText, view -> runBenchmark())
+                    .addCondition(TesterSettings::areTesterSettingsActivated)
+                    .addEnabledCondition(() -> isVoiceChangeEnabled() && originalOutputAudioBuffer != null),
+    };
+
+    private boolean isVoiceChangeEnabled() {
+        return VoiceChangeSettings.voiceChangeEnabled.get().orElse(false);
+    }
+
+    private void changeAggressiveness(boolean aggressive) {
+        if (VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true) != aggressive) {
+            VoiceChangeSettings.aggressiveChangeLevel.set(aggressive);
+            new VoiceChangeSettingsGenerator().generateParameters(false);
+            listAdapter.notifyItemChanged(aggressiveChangeLevelItem.getPosition());
+            listAdapter.notifyItemChanged(moderateChangeLevelItem.getPosition());
+            voiceChangingParametersChanged();
+        }
+    }
+
+    private static int getQualityIndex() {
+        if (VoiceChangeSettings.useSpectrumDistortion.get().orElse(false)) {
+            return 0;
+        } else if (VoiceChangeSettings.formantShiftingHarvest.get().orElse(false)) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    private void setQuality(Integer value) {
+        if (value == 0) {
+            VoiceChangeSettings.useSpectrumDistortion.set(true);
+            VoiceChangeSettings.formantShiftingHarvest.set(false);
+            new VoiceChangeSettingsGenerator().generateParameters(false);
+        } else if (value == 1) {
+            boolean spectrumDistortionWasEnabled = VoiceChangeSettings.useSpectrumDistortion.get().orElse(false);
+            VoiceChangeSettings.useSpectrumDistortion.set(false);
+            VoiceChangeSettings.formantShiftingHarvest.set(false);
+            if (spectrumDistortionWasEnabled) {
+                new VoiceChangeSettingsGenerator().generateParameters(false);
+            }
+        } else if (value == 2) {
+            VoiceChangeSettings.useSpectrumDistortion.set(false);
+            VoiceChangeSettings.formantShiftingHarvest.set(true);
+        }
+        voiceChangingParametersChanged();
+    }
+
+    private void onRecordClicked(View view) {
+        if (audioRecorder == null) {
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            stopPlaying();
+            if (Build.VERSION.SDK_INT >= 23 && getParentActivity().checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                getParentActivity().requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 3);
+                return;
+            }
+            startRecording();
+        } else {
+            stopRecording();
+        }
+        listAdapter.notifyItemChanged(recordItem.getPosition());
+    }
+
+    private void onPlayerButtonClicked(View view, boolean changed) {
+        if (voiceChanger != null) {
+            voiceChangingFinishedCallback = () -> onPlayerButtonClicked(view, changed);
+            stopRecording();
+        }
+        VoiceChangeExamplePlayer player = changed ? changedPlayer : originalPlayer;
+        ByteArrayOutputStream buffer = changed ? changedOutputAudioBuffer : originalOutputAudioBuffer;
+        if (!player.isPlaying()) {
+            if (changed) {
+                originalPlayer.stopPlaying();
+            } else {
+                changedPlayer.stopPlaying();
+            }
+
+            if (buffer != null) {
+                byte[] audioBytes = buffer.toByteArray();
+                player.startPlaying(audioBytes, () -> onPlayingFinished(changed ? playChangedItem.getPosition() : playOriginalItem.getPosition()));
+                ((TextCell)view).setTextAndIcon(getString(R.string.Stop), R.drawable.quantum_ic_stop_white_24, true);
+            }
+        } else {
+            player.stopPlaying();
+        }
+    }
+
+    private void onPlayingFinished(int row) {
+        AndroidUtilities.runOnUIThread(() -> listAdapter.notifyItemChanged(row));
+    }
+
+    private void showEnableForIndividualAccountsDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        final Set<Integer> selectedAccounts = new HashSet<>(getVoiceChangeEnabledAccounts());
+        LinearLayout accountsLayout = Utils.createAccountsCheckboxLayout(getContext(), selectedAccounts::contains, (acc, enabled) -> {
+            if (enabled) {
+                selectedAccounts.add(acc);
+            } else {
+                selectedAccounts.remove(acc);
+            }
+        });
+
+        builder.setTitle(LocaleController.getString(R.string.EnableForIndividualAccounts));
+        builder.setView(accountsLayout);
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        builder.setPositiveButton(LocaleController.getString(R.string.OK), (dialogInterface, i) -> {
+            for (int accountNum : Utils.getActivatedAccountsSortedByLoginTime()) {
+                UserConfig.getInstance(accountNum).voiceChangeEnabledForAccount = selectedAccounts.contains(accountNum);
+                UserConfig.getInstance(accountNum).saveConfig(false);
+            }
+            listAdapter.notifyItemChanged(enableForIndividualAccountsItem.getPosition());
+        });
+        showDialog(builder.create());
+    }
+
+    private List<Integer> getVoiceChangeEnabledAccounts() {
+        return Utils.getActivatedAccountsSortedByLoginTime().stream()
+                .filter(a -> UserConfig.getInstance(a).voiceChangeEnabledForAccount)
+                .collect(Collectors.toList());
+    }
+
+    private void runBenchmark() {
+        if (originalOutputAudioBuffer == null || originalOutputAudioBuffer.size() == 0) {
+            return;
+        }
+        listView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+        final long startTime = System.currentTimeMillis();
+        VoiceChanger benchmarkVoiceChanger = new VoiceChanger(new TesterSettingsParametersProvider(), sampleRate);
+        benchmarkVoiceChanger.setFinishedCallback(() -> AndroidUtilities.runOnUIThread(() -> onBenchmarkFinished(startTime)));
+        benchmarkVoiceChanger.write(originalOutputAudioBuffer.toByteArray());
+        benchmarkVoiceChanger.notifyWritingFinished();
+    }
+
+    private void onBenchmarkFinished(long startTime) {
+        if (getContext() == null) {
+            return;
+        }
+        long duration = System.currentTimeMillis() - startTime;
+        benchmarkRatioText = getBenchmarkRatioText(duration);
+        Toast.makeText(getContext(), "Ratio: " + benchmarkRatioText, Toast.LENGTH_LONG).show();
+        listAdapter.notifyItemChanged(benchmarkItem.getPosition());
+        listView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+    }
+
+    private String getBenchmarkRatioText(long duration) {
+        final int sampleSize = 2;
+        double originalLength = ((double)originalOutputAudioBuffer.size() / sampleSize / sampleRate);
+        double formantRatio = duration / (originalLength * 1E3);
+        DecimalFormat df = new DecimalFormat("0.00");
+        return df.format(formantRatio * 100) + "%";
+    }
 
     private final Runnable recordRunnable = new Runnable() {
         @Override
@@ -173,7 +388,8 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
     @Override
     public boolean onFragmentCreate() {
         super.onFragmentCreate();
-        updateRows();
+        listAdapter = new PartisanListAdapter(items);
+        listAdapter.updateRows();
         return true;
     }
 
@@ -216,129 +432,10 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
         listView.setItemAnimator(null);
         listView.setLayoutAnimation(null);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        listView.setAdapter(listAdapter = new ListAdapter(context));
-        listView.setOnItemClickListener((view, position, x, y) -> {
-            if (!view.isEnabled()) {
-                return;
-            }
-            if (position == enableRow) {
-                boolean newValue = VoiceChangeSettings.voiceChangeEnabled.toggle();
-                if (VoiceChangeSettings.areSettingsEmpty()) {
-                    new VoiceChangeSettingsGenerator().generateParameters(true);
-                }
-                ((TextCheckCell)view).setChecked(newValue);
-                listAdapter.notifyDataSetChanged();
-            } else if (position == aggressiveChangeLevelRow) {
-                if (!VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true)) {
-                    VoiceChangeSettings.aggressiveChangeLevel.set(true);
-                    new VoiceChangeSettingsGenerator().generateParameters(false);
-                    listAdapter.notifyItemChanged(aggressiveChangeLevelRow);
-                    listAdapter.notifyItemChanged(moderateChangeLevelRow);
-                    voiceChangingParametersChanged();
-                }
-            } else if (position == moderateChangeLevelRow) {
-                if (VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true)) {
-                    VoiceChangeSettings.aggressiveChangeLevel.set(false);
-                    new VoiceChangeSettingsGenerator().generateParameters(false);
-                    listAdapter.notifyItemChanged(aggressiveChangeLevelRow);
-                    listAdapter.notifyItemChanged(moderateChangeLevelRow);
-                    voiceChangingParametersChanged();
-                }
-            } else if (position == recordRow) {
-                if (audioRecorder == null) {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                    stopPlaying();
-                    if (Build.VERSION.SDK_INT >= 23 && getParentActivity().checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                        getParentActivity().requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 3);
-                        return;
-                    }
-                    startRecording();
-                    ((TextCell)view).setTextAndIcon(getString(R.string.Stop), R.drawable.quantum_ic_stop_white_24, true);
-                    ((RecordTextCell)view).setRecording(true);
-                } else {
-                    stopRecording();
-                    ((TextCell)view).setTextAndIcon(getString(R.string.RecordVoiceChangeExample), R.drawable.input_mic, true);
-                    ((RecordTextCell)view).setRecording(false);
-                }
-            } else if (position == playChangedRow) {
-                onPlayerButtonClicked(view, true);
-            } else if (position == playOriginalRow) {
-                onPlayerButtonClicked(view, false);
-            } else if (position == generateNewParametersRow) {
-                new VoiceChangeSettingsGenerator().generateParameters(true);
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                Toast.makeText(getContext(), getString(R.string.VoiceChanged), Toast.LENGTH_SHORT).show();
-            } else if (position == enableForIndividualAccountsRow) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-                final Set<Integer> selectedAccounts = new HashSet<>(getVoiceChangeEnabledAccounts());
-                LinearLayout accountsLayout = Utils.createAccountsCheckboxLayout(getContext(), selectedAccounts::contains, (acc, enabled) -> {
-                    if (enabled) {
-                        selectedAccounts.add(acc);
-                    } else {
-                        selectedAccounts.remove(acc);
-                    }
-                });
-
-                builder.setTitle(LocaleController.getString(R.string.EnableForIndividualAccounts));
-                builder.setView(accountsLayout);
-                builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
-                builder.setPositiveButton(LocaleController.getString(R.string.OK), (dialogInterface, i) -> {
-                    for (int accountNum : Utils.getActivatedAccountsSortedByLoginTime()) {
-                        UserConfig.getInstance(accountNum).voiceChangeEnabledForAccount = selectedAccounts.contains(accountNum);
-                        UserConfig.getInstance(accountNum).saveConfig(false);
-                    }
-                    listAdapter.notifyItemChanged(enableForIndividualAccountsRow);
-                });
-                showDialog(builder.create());
-            } else if (position == enableForVoiceMessagesRow) {
-                boolean newValue = VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.VOICE_MESSAGE);
-                ((TextCheckCell)view).setChecked(newValue);
-            } else if (position == enableForVideoMessagesRow) {
-                boolean newValue = VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.VIDEO_MESSAGE);
-                ((TextCheckCell)view).setChecked(newValue);
-            } else if (position == enableForCallsRow) {
-                boolean newValue = VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.CALL);
-                ((TextCheckCell)view).setChecked(newValue);
-            } else if (position == showVoiceChangedNotificationRow) {
-                boolean newValue = VoiceChangeSettings.showVoiceChangedNotification.toggle();
-                ((TextCheckCell)view).setChecked(newValue);
-            } else if (position == worksWithFakePasscodesRow) {
-                boolean newValue = VoiceChangeSettings.voiceChangeWorksWithFakePasscode.toggle();
-                ((TextCheckCell)view).setChecked(newValue);
-            } else if (position == benchmarkRow) {
-                runBenchmark();
-            }
-        });
-
+        listAdapter.setContext(context);
+        listView.setAdapter(listAdapter);
+        listView.setOnItemClickListener(listAdapter::onItemClick);
         return fragmentView;
-    }
-
-    private void onPlayerButtonClicked(View view, boolean changed) {
-        if (voiceChanger != null) {
-            voiceChangingFinishedCallback = () -> onPlayerButtonClicked(view, changed);
-            stopRecording();
-        }
-        VoiceChangeExamplePlayer player = changed ? changedPlayer : originalPlayer;
-        ByteArrayOutputStream buffer = changed ? changedOutputAudioBuffer : originalOutputAudioBuffer;
-        if (!player.isPlaying()) {
-            if (changed) {
-                originalPlayer.stopPlaying();
-            } else {
-                changedPlayer.stopPlaying();
-            }
-
-            if (buffer != null) {
-                byte[] audioBytes = buffer.toByteArray();
-                player.startPlaying(audioBytes, () -> onPlayingFinished(changed ? playChangedRow : playOriginalRow));
-                ((TextCell)view).setTextAndIcon(getString(R.string.Stop), R.drawable.quantum_ic_stop_white_24, true);
-            }
-        } else {
-            player.stopPlaying();
-        }
-    }
-
-    private void onPlayingFinished(int row) {
-        AndroidUtilities.runOnUIThread(() -> listAdapter.notifyItemChanged(row));
     }
 
     private void startRecording() {
@@ -394,10 +491,9 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
                 audioRecorder.release();
                 audioRecorder = null;
                 AndroidUtilities.runOnUIThread(() -> {
-                    if (recordCell != null) {
-                        recordCell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                    }
-                    listAdapter.notifyDataSetChanged();
+                    listView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    listAdapter.notifyItemChanged(recordItem.getPosition());
+                    notifyPlayButtonsChanged();
                 });
             }
             if (voiceChanger != null) {
@@ -412,45 +508,10 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
         }
     }
 
-    private void runBenchmark() {
-        if (originalOutputAudioBuffer == null || originalOutputAudioBuffer.size() == 0) {
-            return;
-        }
-        if (benchmarkCell != null) {
-            benchmarkCell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-        }
-        final long startTime = System.currentTimeMillis();
-        VoiceChanger benchmarkVoiceChanger = new VoiceChanger(new TesterSettingsParametersProvider(), sampleRate);
-        benchmarkVoiceChanger.setFinishedCallback(() -> AndroidUtilities.runOnUIThread(() -> onBenchmarkFinished(startTime)));
-        benchmarkVoiceChanger.write(originalOutputAudioBuffer.toByteArray());
-        benchmarkVoiceChanger.notifyWritingFinished();
-    }
-
-    private void onBenchmarkFinished(long startTime) {
-        if (getContext() == null) {
-            return;
-        }
-        long duration = System.currentTimeMillis() - startTime;
-        benchmarkRatioText = getBenchmarkRatioText(duration);
-        Toast.makeText(getContext(), "Ratio: " + benchmarkRatioText, Toast.LENGTH_LONG).show();
-        listAdapter.notifyItemChanged(benchmarkRow);
-        if (benchmarkCell != null) {
-            benchmarkCell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-        }
-    }
-
-    private String getBenchmarkRatioText(long duration) {
-        final int sampleSize = 2;
-        double originalLength = ((double)originalOutputAudioBuffer.size() / sampleSize / sampleRate);
-        double formantRatio = duration / (originalLength * 1E3);
-        DecimalFormat df = new DecimalFormat("0.00");
-        return df.format(formantRatio * 100) + "%";
-    }
-
-    private List<Integer> getVoiceChangeEnabledAccounts() {
-        return Utils.getActivatedAccountsSortedByLoginTime().stream()
-                .filter(a -> UserConfig.getInstance(a).voiceChangeEnabledForAccount)
-                .collect(Collectors.toList());
+    private void notifyPlayButtonsChanged() {
+        listAdapter.notifyItemChanged(playChangedItem.getPosition());
+        listAdapter.notifyItemChanged(playOriginalItem.getPosition());
+        listAdapter.notifyItemChanged(benchmarkItem.getPosition());
     }
 
     private void voiceChangingParametersChanged() {
@@ -471,49 +532,14 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
     private void resetBuffers() {
         changedOutputAudioBuffer = null;
         originalOutputAudioBuffer = null;
-        listAdapter.notifyDataSetChanged();
+        notifyPlayButtonsChanged();
     }
 
     @Override
     public void onResume() {
         super.onResume();
         if (listAdapter != null) {
-            listAdapter.notifyDataSetChanged();
-        }
-    }
-
-    private void updateRows() {
-        rowCount = 0;
-
-        enableRow = rowCount++;
-        enableDelimiterRow = rowCount++;
-        changeLevelHeaderRow = rowCount++;
-        aggressiveChangeLevelRow = rowCount++;
-        aggressiveChangeLevelDescriptionRow = rowCount++;
-        moderateChangeLevelRow = rowCount++;
-        moderateChangeLevelDescriptionRow = rowCount++;
-        qualityHeaderRow = rowCount++;
-        qualityRow = rowCount++;
-        qualityDescriptionRow = rowCount++;
-        checkVoiceChangingHeaderRow = rowCount++;
-        recordRow = rowCount++;
-        playChangedRow = rowCount++;
-        playOriginalRow = rowCount++;
-        checkVoiceChangingDescriptionRow = rowCount++;
-        generateNewParametersRow = rowCount++;
-        generateNewParametersDescriptionRow = rowCount++;
-        enableForIndividualAccountsRow = rowCount++;
-        enableForIndividualAccountsDelimiterRow = rowCount++;
-        enableForVoiceMessagesRow = rowCount++;
-        enableForVideoMessagesRow = rowCount++;
-        enableForCallsRow = rowCount++;
-        enableForTypesDelimiterRow = rowCount++;
-        showVoiceChangedNotificationRow = rowCount++;
-        showVoiceChangedNotificationDescriptionRow = rowCount++;
-        worksWithFakePasscodesRow = rowCount++;
-        if (TesterSettings.areTesterSettingsActivated()) {
-            worksWithFakePasscodesDelimiterRow = rowCount++;
-            benchmarkRow = rowCount++;
+            listAdapter.notifyItemRangeChanged(0, listAdapter.getItemCount());
         }
     }
 
@@ -530,315 +556,5 @@ public class VoiceChangeSettingsFragment extends BaseFragment {
                 }
             });
         }
-    }
-
-    private enum ViewType {
-        CHECK,
-        RADIO_BUTTON,
-        SETTING,
-        BUTTON_WITH_ICON,
-        RECORD_BUTTON,
-        QUALITY_SLIDER,
-        DESCRIPTION,
-        HEADER,
-        DELIMITER
-    }
-
-    private class ListAdapter extends RecyclerListView.SelectionAdapter {
-        private Context mContext;
-
-        public ListAdapter(Context context) {
-            mContext = context;
-        }
-
-        @Override
-        public boolean isEnabled(RecyclerView.ViewHolder holder) {
-            int position = holder.getAdapterPosition();
-            if (position == aggressiveChangeLevelRow || position == moderateChangeLevelRow || position == qualityRow
-                    || position == generateNewParametersRow || position == recordRow
-                    || position == playChangedRow || position == playOriginalRow
-                    || position == enableForIndividualAccountsRow || position == enableForVoiceMessagesRow
-                    || position == enableForVideoMessagesRow || position == enableForCallsRow
-                    || position == showVoiceChangedNotificationRow || position == worksWithFakePasscodesRow
-                    || position == benchmarkRow) {
-                boolean voiceChangeEnabled = VoiceChangeSettings.voiceChangeEnabled.get().orElse(false);
-                if (position == playChangedRow) {
-                    return voiceChangeEnabled && changedOutputAudioBuffer != null;
-                } else if (position == playOriginalRow || position == benchmarkRow) {
-                    return voiceChangeEnabled && originalOutputAudioBuffer != null;
-                } else {
-                    return voiceChangeEnabled;
-                }
-            }
-            return holder.getItemViewType() != ViewType.DESCRIPTION.ordinal()
-                    && holder.getItemViewType() != ViewType.HEADER.ordinal()
-                    && holder.getItemViewType() != ViewType.DELIMITER.ordinal();
-        }
-
-        @Override
-        public int getItemCount() {
-            return rowCount;
-        }
-
-        @Override
-        @NonNull
-        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View view;
-            switch (ViewType.values()[viewType]) {
-                case CHECK:
-                    view = new TextCheckCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-                    break;
-                case RADIO_BUTTON:
-                    view = new SimpleRadioButtonCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-                    break;
-                case SETTING:
-                    view = new TextSettingsCell(mContext);
-                    ((TextSettingsCell)view).setCanDisable(true);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-                    break;
-                case BUTTON_WITH_ICON:
-                    view = new TextCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-                    break;
-                case RECORD_BUTTON:
-                    view = new RecordTextCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-                    break;
-                case QUALITY_SLIDER:
-                    PartisanSlideChooseView slideChooseView = new PartisanSlideChooseView(mContext);
-                    view = slideChooseView;
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-
-                    slideChooseView.setCallback(i -> {
-                        if (i == 0) {
-                            VoiceChangeSettings.useSpectrumDistortion.set(true);
-                            VoiceChangeSettings.formantShiftingHarvest.set(false);
-                            new VoiceChangeSettingsGenerator().generateParameters(false);
-                        } else if (i == 1) {
-                            boolean spectrumDistortionWasEnabled = VoiceChangeSettings.useSpectrumDistortion.get().orElse(false);
-                            VoiceChangeSettings.useSpectrumDistortion.set(false);
-                            VoiceChangeSettings.formantShiftingHarvest.set(false);
-                            if (spectrumDistortionWasEnabled) {
-                                new VoiceChangeSettingsGenerator().generateParameters(false);
-                            }
-                        } else if (i == 2) {
-                            VoiceChangeSettings.useSpectrumDistortion.set(false);
-                            VoiceChangeSettings.formantShiftingHarvest.set(true);
-                        }
-                        voiceChangingParametersChanged();
-                    });
-                    int currentQuality;
-                    if (VoiceChangeSettings.useSpectrumDistortion.get().orElse(false)) {
-                        currentQuality = 0;
-                    } else if (VoiceChangeSettings.formantShiftingHarvest.get().orElse(false)) {
-                        currentQuality = 2;
-                    } else {
-                        currentQuality = 1;
-                    }
-                    String[] values = new String[3];
-                    values[0] = getString(R.string.Quality480); // "Low"
-                    values[1] = getString(R.string.Quality720); // "Medium"
-                    values[2] = getString(R.string.Quality1080);// "High"
-                    slideChooseView.setOptions(currentQuality, values);
-                    break;
-                case DESCRIPTION:
-                    view = new TextInfoPrivacyCell(mContext);
-                    view.setBackgroundDrawable(Theme.getThemedDrawable(mContext, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
-                    break;
-                case HEADER:
-                    view = new HeaderCell(mContext);
-                    view.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-                    break;
-                case DELIMITER:
-                default:
-                    view = new ShadowSectionCell(mContext);
-                    break;
-            }
-            return new RecyclerListView.Holder(view);
-        }
-
-        @Override
-        public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-            switch (ViewType.values()[holder.getItemViewType()]) {
-                case CHECK: {
-                    TextCheckCell textCell = (TextCheckCell) holder.itemView;
-                    if (position == enableRow) {
-                        textCell.setTextAndCheck(getString(R.string.Enable), VoiceChangeSettings.voiceChangeEnabled.get().orElse(false), true);
-                    } else if (position == enableForVoiceMessagesRow) {
-                        textCell.setTextAndCheck(getString(R.string.EnableForVoiceMessages), VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.VOICE_MESSAGE), true);
-                    } else if (position == enableForVideoMessagesRow) {
-                        textCell.setTextAndCheck(getString(R.string.EnableForVideoMessages), VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.VIDEO_MESSAGE), true);
-                    } else if (position == enableForCallsRow) {
-                        textCell.setTextAndCheck(getString(R.string.EnableForVideoCalls), VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.CALL), false);
-                    } else if (position == showVoiceChangedNotificationRow) {
-                        textCell.setTextAndCheck(getString(R.string.ShowVoiceChangedNotification), VoiceChangeSettings.showVoiceChangedNotification.get().orElse(false), false);
-                    } else if (position == worksWithFakePasscodesRow) {
-                        textCell.setTextAndCheck(getString(R.string.WorksWithFakePasscodes), VoiceChangeSettings.voiceChangeWorksWithFakePasscode.get().orElse(false), false);
-                    }
-                    textCell.setEnabled(isEnabled(holder), null);
-                    break;
-                }
-                case RADIO_BUTTON: {
-                    SimpleRadioButtonCell textCell = (SimpleRadioButtonCell) holder.itemView;
-                    if (position == aggressiveChangeLevelRow) {
-                        textCell.setTextAndValue(getString(R.string.AggressiveVoiceChange), false, VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true));
-                    } else if (position == moderateChangeLevelRow) {
-                        textCell.setTextAndValue(getString(R.string.ModerateVoiceChange), false, !VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true));
-                    }
-                    break;
-                }
-                case SETTING: {
-                    TextSettingsCell textCell = (TextSettingsCell) holder.itemView;
-                    if (position == enableForIndividualAccountsRow) {
-                        int enabledCount = getVoiceChangeEnabledAccounts().size();
-                        String value = enabledCount == UserConfig.getActivatedAccountsCount()
-                                ? getString(R.string.FilterAllChatsShort)
-                                : enabledCount + "/" + UserConfig.getActivatedAccountsCount();
-                        textCell.setTextAndValue(getString(R.string.EnableForIndividualAccounts), value, false);
-                    } else if (position == benchmarkRow) {
-                        benchmarkCell = textCell;
-                        if (benchmarkRatioText != null) {
-                            textCell.setTextAndValue("Benchmark", benchmarkRatioText, false);
-                        } else {
-                            textCell.setText("Benchmark", false);
-                        }
-                    }
-                    break;
-                }
-                case BUTTON_WITH_ICON: {
-                    TextCell textCell = (TextCell) holder.itemView;
-                    if (position == playChangedRow) {
-                        textCell.setTextAndIcon(getString(R.string.PlayChangedVoice), R.drawable.quantum_ic_play_arrow_white_24, true);
-                    } else if (position == playOriginalRow) {
-                        textCell.setTextAndIcon(getString(R.string.PlayNormalVoice), R.drawable.quantum_ic_play_arrow_white_24, false);
-                    } else if (position == generateNewParametersRow) {
-                        textCell.setTextAndIcon(getString(R.string.GenerateNewVoiceChangeParameters), R.drawable.quantum_ic_refresh_white_24, false);
-                    }
-                    break;
-                }
-                case RECORD_BUTTON:
-                    RecordTextCell textCell = (RecordTextCell) holder.itemView;
-                    if (position == recordRow) {
-                        recordCell = textCell;
-                        textCell.setTextAndIcon(getString(R.string.RecordVoiceChangeExample), R.drawable.input_mic, true);
-                        textCell.setRecording(false);
-                    }
-                    break;
-                case DESCRIPTION: {
-                    TextInfoPrivacyCell cell = (TextInfoPrivacyCell) holder.itemView;
-                    if (position == aggressiveChangeLevelDescriptionRow) {
-                        cell.setText(getString(R.string.AggressiveVoiceChangeDescription));
-                    } else if (position == moderateChangeLevelDescriptionRow) {
-                        cell.setText(getString(R.string.ModerateVoiceChangeDescription));
-                    } else if (position == qualityDescriptionRow) {
-                        cell.setText(getString(R.string.VoiceChangeQualityDescription));
-                    } else if (position == checkVoiceChangingDescriptionRow) {
-                        cell.setText(getString(R.string.CheckVoiceChangingDescription));
-                    } else if (position == generateNewParametersDescriptionRow) {
-                        cell.setText(getString(R.string.GenerateNewVoiceChangeParametersDescription));
-                    } else if (position == showVoiceChangedNotificationDescriptionRow) {
-                        cell.setText(getString(R.string.ShowVoiceChangedNotificationDescription));
-                    }
-                    break;
-                }
-                case HEADER: {
-                    HeaderCell cell = (HeaderCell) holder.itemView;
-                    cell.setHeight(46);
-                    if (position == changeLevelHeaderRow) {
-                        cell.setText(getString(R.string.VoiceChangeLevel));
-                    } else if (position == qualityHeaderRow) {
-                        cell.setText(getString(R.string.Quality));
-                    } else if (position == checkVoiceChangingHeaderRow) {
-                        cell.setText(getString(R.string.CheckVoiceChanging));
-                    }
-                    break;
-                }
-            }
-        }
-
-        @Override
-        public void onViewAttachedToWindow(RecyclerView.ViewHolder holder) {
-            if (holder.getItemViewType() == ViewType.SETTING.ordinal()) {
-                TextSettingsCell textCell = (TextSettingsCell) holder.itemView;
-                textCell.setEnabled(isEnabled(holder));
-            } else if (holder.getItemViewType() == ViewType.BUTTON_WITH_ICON.ordinal()
-                    || holder.getItemViewType() == ViewType.RECORD_BUTTON.ordinal()) {
-                TextCell textCell = (TextCell) holder.itemView;
-                textCell.setEnabled(isEnabled(holder));
-                textCell.showEnabledAlpha(!isEnabled(holder));
-            }
-        }
-
-        @Override
-        public int getItemViewType(int position) {
-            return getItemViewTypeInternal(position).ordinal();
-        }
-
-        private ViewType getItemViewTypeInternal(int position) {
-            if (position == enableRow || position == enableForVoiceMessagesRow || position == enableForVideoMessagesRow
-                    || position == enableForCallsRow || position == showVoiceChangedNotificationRow
-                    || position == worksWithFakePasscodesRow) {
-                return ViewType.CHECK;
-            } else if (position == aggressiveChangeLevelRow || position == moderateChangeLevelRow) {
-                return ViewType.RADIO_BUTTON;
-            } else if (position == enableForIndividualAccountsRow || position == benchmarkRow) {
-                return ViewType.SETTING;
-            } else if (position == playChangedRow || position == playOriginalRow || position == generateNewParametersRow) {
-                return ViewType.BUTTON_WITH_ICON;
-            } else if (position == recordRow) {
-                return ViewType.RECORD_BUTTON;
-            } else if (position == qualityRow) {
-                return ViewType.QUALITY_SLIDER;
-            } else if (position == aggressiveChangeLevelDescriptionRow
-                    || position == moderateChangeLevelDescriptionRow || position == qualityDescriptionRow
-                    || position == checkVoiceChangingDescriptionRow || position == generateNewParametersDescriptionRow
-                    || position == showVoiceChangedNotificationDescriptionRow) {
-                return ViewType.DESCRIPTION;
-            } else if (position == changeLevelHeaderRow || position == qualityHeaderRow
-                    || position == checkVoiceChangingHeaderRow) {
-                return ViewType.HEADER;
-            } else if (position == enableDelimiterRow || position == enableForIndividualAccountsDelimiterRow
-                    || position == enableForTypesDelimiterRow || position == worksWithFakePasscodesDelimiterRow) {
-                return ViewType.DELIMITER;
-            }
-            throw new RuntimeException("Unknown row: " + position);
-        }
-    }
-
-    @Override
-    public ArrayList<ThemeDescription> getThemeDescriptions() {
-        ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{TextCheckCell.class, TextSettingsCell.class}, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND | ThemeDescription.FLAG_CHECKTAG, null, null, null, null, Theme.key_windowBackgroundWhite));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND | ThemeDescription.FLAG_CHECKTAG, null, null, null, null, Theme.key_windowBackgroundGray));
-
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, null, null, Theme.key_actionBarDefaultTitle));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR, null, null, null, null, Theme.key_actionBarDefaultSelector));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUBACKGROUND, null, null, null, null, Theme.key_actionBarDefaultSubmenuBackground));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUITEM, null, null, null, null, Theme.key_actionBarDefaultSubmenuItem));
-        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBMENUITEM | ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_actionBarDefaultSubmenuItemIcon));
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
-
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));
-
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrack));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextCheckCell.class}, new String[]{"checkBox"}, null, null, null, Theme.key_switchTrackChecked));
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CHECKTAG, new Class[]{TextSettingsCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteBlackText));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CHECKTAG, new Class[]{TextSettingsCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText7));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextSettingsCell.class}, new String[]{"valueTextView"}, null, null, null, Theme.key_windowBackgroundWhiteValueText));
-
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{TextInfoPrivacyCell.class}, null, null, null, Theme.key_windowBackgroundGrayShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{TextInfoPrivacyCell.class}, new String[]{"textView"}, null, null, null, Theme.key_windowBackgroundWhiteGrayText4));
-
-        return themeDescriptions;
     }
 }
