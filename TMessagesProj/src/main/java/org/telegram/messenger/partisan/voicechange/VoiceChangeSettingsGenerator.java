@@ -19,10 +19,12 @@ public class VoiceChangeSettingsGenerator {
             } else {
                 resetBadSoundsParams();
             }
-            generateFormantOrSpectrumDistortionParams(makeBadSounds ? 1.3f : 1.4f, 1.7f);
+            generateFormantOrSpectrumDistortionParams(1.4f, 1.7f);
+            setMaxFormantSpreadIfNeeded(generateRandomFloat(0.15f, 0.25f));
         } else {
             resetBadSoundsParams();
-            generateFormantOrSpectrumDistortionParams(1.15f, 1.3f);
+            generateFormantOrSpectrumDistortionParams(1.2f, 1.4f);
+            setMaxFormantSpreadIfNeeded(0.05f);
         }
     }
 
@@ -92,6 +94,14 @@ public class VoiceChangeSettingsGenerator {
         VoiceChangeSettings.formantRatio.set(generateRandomFloat(min, max));
 
         VoiceChangeSettings.spectrumDistortionParams.set("");
+    }
+
+    private void setMaxFormantSpreadIfNeeded(float spread) {
+        if (VoiceChangeSettings.useSpectrumDistortion.get().orElse(false)) {
+            VoiceChangeSettings.maxFormantSpread.set(0.0f);
+        } else {
+            VoiceChangeSettings.maxFormantSpread.set(spread);
+        }
     }
 
     private int generateRandomInt(int origin, int bound) {

@@ -25,6 +25,7 @@ public class VoiceChangeSettings {
     public static final StringSetting spectrumDistortionParams = new StringSetting("spectrumDistortionParams", "");
     public static final FloatSetting f0Shift = new FloatSetting("f0Shift", 1.0f);
     public static final FloatSetting formantRatio = new FloatSetting("formantRatio", 1.0f);
+    public static final FloatSetting maxFormantSpread = new FloatSetting("maxFormantSpread", 0.0f);
     public static final IntSetting badSThreshold = new IntSetting("badSThreshold", 4500);
     public static final IntSetting badSCutoff = new IntSetting("badSCutoff", 0);
     public static final IntSetting badShMinThreshold = new IntSetting("badShMinThreshold", 2000);

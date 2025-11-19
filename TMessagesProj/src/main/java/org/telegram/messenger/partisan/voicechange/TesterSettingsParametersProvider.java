@@ -65,6 +65,11 @@ public class TesterSettingsParametersProvider implements ParametersProvider {
     }
 
     @Override
+    public double getMaxFormantSpread() {
+        return VoiceChangeSettings.maxFormantSpread.get().orElse(0.0f);
+    }
+
+    @Override
     public int getBadSThreshold() {
         return VoiceChangeSettings.badSThreshold.get().orElse(4500);
     }

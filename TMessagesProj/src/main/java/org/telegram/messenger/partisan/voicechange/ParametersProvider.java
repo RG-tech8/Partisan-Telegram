@@ -8,6 +8,7 @@ public interface ParametersProvider {
     double getF0Shift();
     double getFormantRatio();
     boolean shiftFormantsWithHarvest();
+    double getMaxFormantSpread();
 
     int getBadSThreshold();
     int getBadShMinThreshold();

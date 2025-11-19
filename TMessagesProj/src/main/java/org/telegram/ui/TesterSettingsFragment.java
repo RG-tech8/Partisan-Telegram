@@ -97,6 +97,8 @@ public class TesterSettingsFragment extends PartisanBaseFragment {
                 new HeaderItem(this, "Bad Sh Cutoff"),
                 new SeekBarItem(this, VoiceChangeSettings.badShCutoff, 0, 15000, 250),
                 new ToggleItem(this, "Harvest", VoiceChangeSettings.formantShiftingHarvest),
+                new HeaderItem(this, "Max Formant Spread"),
+                new SeekBarItem(this, VoiceChangeSettings.maxFormantSpread, 0.0, 1.0, 0.01),
                 new DelimiterItem(this),
 
 
