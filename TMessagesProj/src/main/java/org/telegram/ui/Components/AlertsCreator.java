@@ -3842,10 +3842,6 @@ public class AlertsCreator {
         return createScheduleDatePickerDialog(context, dialogId, -1, datePickerDelegate, null);
     }
 
-    public static BottomSheet.Builder createScheduleDeleteTimePickerDialog(Context context, int defaultDelay, final ScheduleDatePickerDelegate datePickerDelegate) {
-        return createScheduleDeleteTimePickerDialog(context, defaultDelay, datePickerDelegate, null, new ScheduleDatePickerColors());
-    }
-
     public static BottomSheet.Builder createScheduleDatePickerDialog(Context context, long dialogId, final ScheduleDatePickerDelegate datePickerDelegate, Theme.ResourcesProvider resourcesProvider) {
         return createScheduleDatePickerDialog(context, dialogId, -1, 0, datePickerDelegate, null, resourcesProvider);
     }
@@ -4229,10 +4225,11 @@ public class AlertsCreator {
         return builder;
     }
 
-    public static BottomSheet.Builder createScheduleDeleteTimePickerDialog(Context context, int defaultDelay, final ScheduleDatePickerDelegate datePickerDelegate, final Runnable cancelRunnable, final ScheduleDatePickerColors datePickerColors) {
+    public static BottomSheet.Builder createScheduleDeleteTimePickerDialog(Context context, int defaultDelay, final ScheduleDatePickerDelegate datePickerDelegate) {
         if (context == null) {
             return null;
         }
+        ScheduleDatePickerColors datePickerColors = new ScheduleDatePickerColors();
 
         BottomSheet.Builder builder = new BottomSheet.Builder(context, false);
         builder.setApplyBottomPadding(false);
@@ -4371,17 +4368,12 @@ public class AlertsCreator {
         buttonTextView.setBackgroundDrawable(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(4), datePickerColors.buttonBackgroundColor, datePickerColors.buttonBackgroundPressedColor));
         container.addView(buttonTextView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.BOTTOM, 16, 15, 16, 16));
         buttonTextView.setOnClickListener(v -> {
-            datePickerDelegate.didSelectDate(true, ((hourPicker.getValue() * 60 + minutePicker.getValue()) * 60 + secondsPicker.getValue()) * 1000);
+            datePickerDelegate.didSelectDate(true, ((hourPicker.getValue() * 60 + minutePicker.getValue()) * 60 + secondsPicker.getValue()) * 1000, 0);
             builder.getDismissRunnable().run();
         });
 
         builder.setCustomView(container);
         BottomSheet bottomSheet = builder.show();
-        bottomSheet.setOnDismissListener(dialog -> {
-            if (cancelRunnable != null && canceled[0]) {
-                cancelRunnable.run();
-            }
-        });
         bottomSheet.setBackgroundColor(datePickerColors.backgroundColor);
         return builder;
     }

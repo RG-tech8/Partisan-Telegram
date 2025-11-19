@@ -7363,7 +7363,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         RemoveAfterReadingMessages.load();
                         RemoveAfterReadingMessages.delays.putIfAbsent("" + currentAccount, 5000);
                         AlertsCreator.createScheduleDeleteTimePickerDialog(parentActivity, RemoveAfterReadingMessages.delays.get("" + currentAccount),
-                                (notify, delay) -> {
+                                (notify, delay, scheduleRepeatPeriod) -> {
                                     sendPressed(true, 0, 0, false, false, false, delay);
                                     RemoveAfterReadingMessages.delays.put("" + currentAccount, delay);
                                     RemoveAfterReadingMessages.save();

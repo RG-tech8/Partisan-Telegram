@@ -144,6 +144,7 @@ import com.google.android.gms.tasks.Task;
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
+import org.telegram.messenger.partisan.PartisanVersion;
 import org.telegram.messenger.partisan.appmigration.MaskedMigratorHelper;
 import org.telegram.messenger.utils.CustomHtml;
 import org.telegram.tgnet.ConnectionsManager;
@@ -6695,7 +6696,11 @@ public class AndroidUtilities {
                     }
                     break;
             }
-            return formatString("TelegramVersion", R.string.TelegramVersion, String.format(Locale.US, "v%s (%d) %s", pInfo.versionName, code, abi));
+            String versionString = formatString("TelegramVersion", R.string.TelegramVersion, String.format(Locale.US, "v%s (%d) %s", pInfo.versionName, code, abi));
+            if (!FakePasscodeUtils.isFakePasscodeActivated() && SharedConfig.showVersion) {
+                versionString += "\nPTelegram version " + PartisanVersion.PARTISAN_VERSION_STRING + " ("  + PartisanVersion.PARTISAN_BUILD_VERSION + ")";
+            }
+            return versionString;
         } catch (Exception e) {
             FileLog.e(e);
         }

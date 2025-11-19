@@ -169,7 +169,6 @@ import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 import org.telegram.messenger.partisan.PartisanLog;
-import org.telegram.messenger.partisan.PartisanVersion;
 import org.telegram.messenger.partisan.SecurityChecker;
 import org.telegram.messenger.partisan.secretgroups.EncryptedGroup;
 import org.telegram.tgnet.ConnectionsManager;

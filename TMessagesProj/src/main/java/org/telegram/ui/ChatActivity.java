@@ -2493,7 +2493,7 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 }
                 SendMessagesHelper.SendMessageParams params =
-                        SendMessagesHelper.SendMessageParams.of(command, dialog_id, null, null, null, false, null, null, null, true, 0, null, false);
+                        SendMessagesHelper.SendMessageParams.of(command, dialog_id, null, null, null, false, null, null, null, true, 0, 0, null, false);
                 getSendMessagesHelper().sendMessage(params);
             });
         }
@@ -4223,6 +4223,7 @@ public class ChatActivity extends BaseFragment implements
                                         null,
                                         null,
                                         false,
+                                        0,
                                         0,
                                         null,
                                         false
@@ -8118,7 +8119,7 @@ public class ChatActivity extends BaseFragment implements
                 selectedMessagesCanStarIds[a].clear();
             }
             hideActionMode();
-            if (messageObject != null && (messageObject.messageOwner.id > 0 || messageObject.messageOwner.id < 0 && currentEncryptedChat != null)) {
+            if (messageObject != null && (messageObject.messageOwner.id > 0 || messageObject.messageOwner.id < 0 && isEncryptedChat())) {
                 showFieldPanelForReply(messageObject);
             }
             updatePinnedMessageView(true);
@@ -9047,7 +9048,7 @@ public class ChatActivity extends BaseFragment implements
 
         if (startLoadFromMessageRestored) {
             updatePagedownButtonVisibility(false);
-            AndroidUtilities.runOnUIThread(() -> pagedownButtonCounter.setCount(prevSetUnreadCount, false));
+            AndroidUtilities.runOnUIThread(() -> sideControlsButtonsLayout.setButtonCount(prevSetUnreadCount, 0, false));
         }
         return fragmentView;
     }
@@ -44608,10 +44609,10 @@ public class ChatActivity extends BaseFragment implements
             allowEdit = captionsCount < 2;
         }
         if (message.isExpiredStory() || chatMode == MODE_SCHEDULED || threadMessageObjects != null && threadMessageObjects.contains(message) ||
-            message.isSponsored() || type == 1 && message.getDialogId() == mergeDialogId ||
-            message.messageOwner.action instanceof TLRPC.TL_messageActionSecureValuesSent ||
-            !isEncryptedChat() && message.getId() < 0 ||
-            bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && selectedObject != null && (MessageObject.getTopicId(currentAccount, selectedObject.messageOwner, ChatObject.isForum(currentChat)) != 0 || selectedObject.wasJustSent))) {
+                message.isSponsored() || type == 1 && message.getDialogId() == mergeDialogId ||
+                message.messageOwner.action instanceof TLRPC.TL_messageActionSecureValuesSent ||
+                !isEncryptedChat() && message.getId() < 0 ||
+                bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && selectedObject != null && (MessageObject.getTopicId(currentAccount, selectedObject.messageOwner, ChatObject.isForum(currentChat)) != 0 || selectedObject.wasJustSent))) {
             allowChatActions = false;
         }
 
@@ -44813,8 +44814,8 @@ public class ChatActivity extends BaseFragment implements
                                     icons.add(R.drawable.msg_unvote);
                                 }
                                 if (!message.isForwarded() && (
-                                    message.isOut() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) ||
-                                        ChatObject.isChannel(currentChat) && !currentChat.megagroup && (currentChat.creator || currentChat.admin_rights != null && currentChat.admin_rights.edit_messages))) {
+                                        message.isOut() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) ||
+                                                ChatObject.isChannel(currentChat) && !currentChat.megagroup && (currentChat.creator || currentChat.admin_rights != null && currentChat.admin_rights.edit_messages))) {
                                     if (message.isQuiz()) {
                                         items.add(LocaleController.getString(R.string.StopQuiz));
                                     } else {
@@ -44983,9 +44984,9 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
                 if (!selectedObject.isSponsored() && chatMode != MODE_QUICK_REPLIES && chatMode != MODE_SCHEDULED && (!selectedObject.needDrawBluredPreview() || selectedObject.hasExtendedMediaPreview()) &&
-                    !selectedObject.isLiveLocation() && selectedObject.type != MessageObject.TYPE_PHONE_CALL && !noforwards &&
-                    selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM && selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM_CHANNEL && selectedObject.type != MessageObject.TYPE_SUGGEST_PHOTO && !selectedObject.isWallpaperAction()
-                    && !message.isExpiredStory() && message.type != MessageObject.TYPE_STORY_MENTION && message.type != MessageObject.TYPE_GIFT_STARS) {
+                        !selectedObject.isLiveLocation() && selectedObject.type != MessageObject.TYPE_PHONE_CALL && !noforwards &&
+                        selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM && selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM_CHANNEL && selectedObject.type != MessageObject.TYPE_SUGGEST_PHOTO && !selectedObject.isWallpaperAction()
+                        && !message.isExpiredStory() && message.type != MessageObject.TYPE_STORY_MENTION && message.type != MessageObject.TYPE_GIFT_STARS) {
                     items.add(LocaleController.getString(R.string.Forward));
                     options.add(OPTION_FORWARD);
                     icons.add(R.drawable.msg_forward);
@@ -45134,6 +45135,7 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
         }
+    }
 
     private void updateBotforumTabsBottomMargin() {
         if (topicsTabs == null) {
@@ -45493,6 +45495,5 @@ public class ChatActivity extends BaseFragment implements
         try {
             fireworksOverlay.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignored) {};
-    }
     }
 }

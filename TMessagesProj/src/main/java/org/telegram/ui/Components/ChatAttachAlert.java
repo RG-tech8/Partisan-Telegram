@@ -3613,16 +3613,16 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     RemoveAfterReadingMessages.load();
                     RemoveAfterReadingMessages.delays.putIfAbsent("" + currentAccount, 5 * 1000);
                     AlertsCreator.createScheduleDeleteTimePickerDialog(getContext(), RemoveAfterReadingMessages.delays.get("" + currentAccount),
-                            (notify, delay) -> {
+                            (notify, delay, scheduleRepeatPeriod) -> {
                                 final long effectId = messageSendPreview != null ? messageSendPreview.getSelectedEffect() : 0;
                                 if (messageSendPreview != null) {
                                     messageSendPreview.dismiss(true);
                                     messageSendPreview = null;
                                 }
                                 if (currentAttachLayout == null || currentAttachLayout == photoLayout || currentAttachLayout == photoPreviewLayout) {
-                                    sendPressed(true, 0, effectId, isCaptionAbove(), delay);
+                                    sendPressed(true, 0, 0, effectId, isCaptionAbove(), delay);
                                 } else {
-                                    currentAttachLayout.sendSelectedItems(true, 0, effectId, isCaptionAbove(), delay);
+                                    currentAttachLayout.sendSelectedItems(true, 0, 0, effectId, isCaptionAbove(), delay);
                                     allowPassConfirmationAlert = true;
                                     dismiss();
                                 }

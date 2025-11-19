@@ -4543,8 +4543,8 @@ public class ChatActivityEnterView extends FrameLayout implements
                         RemoveAfterReadingMessages.load();
                         RemoveAfterReadingMessages.delays.putIfAbsent("" + currentAccount, 5 * 1000);
                         AlertsCreator.createScheduleDeleteTimePickerDialog(parentActivity, RemoveAfterReadingMessages.delays.get("" + currentAccount),
-                                (notify, delay) -> {
-                                    sendMessageInternal(notify, 0, 0, false, delay);
+                                (notify, delay, scheduleRepeatPeriod) -> {
+                                    sendMessageInternal(notify, 0, 0, 0, false, delay);
                                     RemoveAfterReadingMessages.delays.put("" + currentAccount, delay);
                                     RemoveAfterReadingMessages.save();
                                 });
@@ -4816,8 +4816,8 @@ public class ChatActivityEnterView extends FrameLayout implements
                 RemoveAfterReadingMessages.load();
                 RemoveAfterReadingMessages.delays.putIfAbsent("" + currentAccount, 5 * 1000);
                 AlertsCreator.createScheduleDeleteTimePickerDialog(parentActivity, RemoveAfterReadingMessages.delays.get("" + currentAccount),
-                        (notify, delay) -> {
-                            sendMessageInternal(notify, 0, 0, false, delay);
+                        (notify, delay, scheduleRepeatPeriod) -> {
+                            sendMessageInternal(notify, 0, 0, 0, false, delay);
                             RemoveAfterReadingMessages.delays.put("" + currentAccount, delay);
                             RemoveAfterReadingMessages.save();
                             if (messageSendPreview != null) {
@@ -6922,8 +6922,8 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
     }
 
-    private boolean sendMessageInternal(boolean notify, int scheduleDate, long payStars, boolean allowConfirm) {
-        return sendMessageInternal(notify, scheduleDate, payStars, allowConfirm, null);
+    private boolean sendMessageInternal(boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars, boolean allowConfirm) {
+        return sendMessageInternal(notify, scheduleDate, scheduleRepeatPeriod, payStars, allowConfirm, null);
     }
 
     protected boolean showConfirmAlert(Runnable onConfirmed) {
@@ -7383,8 +7383,8 @@ public class ChatActivityEnterView extends FrameLayout implements
         return false;
     }
 
-    public boolean processSendingText(CharSequence text, boolean notify, long payStars, int scheduleDate) {
-        return processSendingText(text, notify, scheduleDate, payStars, null);
+    public boolean processSendingText(CharSequence text, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars) {
+        return processSendingText(text, notify, scheduleDate, scheduleRepeatPeriod, payStars, null);
     }
 
     public long getSendMonoForumPeerId() {
