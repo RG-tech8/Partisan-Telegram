@@ -64,22 +64,27 @@ public class TesterSettingsParametersProvider implements ParametersProvider {
         return VoiceChangeSettings.formantShiftingHarvest.get().orElse(false);
     }
 
+    @Override
     public int getBadSThreshold() {
         return VoiceChangeSettings.badSThreshold.get().orElse(4500);
     }
 
+    @Override
     public int getBadShMinThreshold() {
         return VoiceChangeSettings.badShMinThreshold.get().orElse(2000);
     }
 
+    @Override
     public int getBadShMaxThreshold() {
         return VoiceChangeSettings.badShMaxThreshold.get().orElse(4500);
     }
 
+    @Override
     public int getBadSCutoff() {
         return VoiceChangeSettings.badSCutoff.get().orElse(0);
     }
 
+    @Override
     public int getBadShCutoff() {
         return VoiceChangeSettings.badShCutoff.get().orElse(0);
     }
