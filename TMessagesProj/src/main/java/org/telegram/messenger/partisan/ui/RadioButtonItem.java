@@ -28,7 +28,7 @@ public class RadioButtonItem extends AbstractItem {
 
     @Override
     public void onBindViewHolderInternal(RecyclerView.ViewHolder holder, int position) {
-        ((SimpleRadioButtonCell) holder.itemView).setTextAndValue(text, getValue.get(), true);
+        ((SimpleRadioButtonCell) holder.itemView).setTextAndValue(text, true, getValue.get());
     }
 
     @Override

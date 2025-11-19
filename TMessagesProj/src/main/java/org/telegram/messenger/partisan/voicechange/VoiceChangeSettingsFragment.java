@@ -93,7 +93,7 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
                         () -> changeAggressiveness(true))
                         .addEnabledCondition(this::isVoiceChangeEnabled),
                 new DescriptionItem(this, getString(R.string.AggressiveVoiceChangeDescription)),
-                moderateChangeLevelItem = new RadioButtonItem(this, getString(R.string.AggressiveVoiceChange),
+                moderateChangeLevelItem = new RadioButtonItem(this, getString(R.string.ModerateVoiceChange),
                         () -> !VoiceChangeSettings.aggressiveChangeLevel.getOrDefault(),
                         () -> changeAggressiveness(false))
                         .addEnabledCondition(this::isVoiceChangeEnabled),
