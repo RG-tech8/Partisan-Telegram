@@ -99,6 +99,7 @@ public class TesterSettingsFragment extends PartisanBaseFragment {
                 new ToggleItem(this, "Harvest", VoiceChangeSettings.formantShiftingHarvest),
                 new HeaderItem(this, "Max Formant Spread"),
                 new SeekBarItem(this, VoiceChangeSettings.maxFormantSpread, 0.0, 1.0, 0.01),
+                new ToggleItem(this, "Use Old Window Restore", VoiceChangeSettings.useOldWindowRestore),
                 new DelimiterItem(this),
 
 

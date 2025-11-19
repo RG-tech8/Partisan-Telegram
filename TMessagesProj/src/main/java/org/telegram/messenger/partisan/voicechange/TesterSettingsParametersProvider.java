@@ -93,4 +93,9 @@ public class TesterSettingsParametersProvider implements ParametersProvider {
     public int getBadShCutoff() {
         return VoiceChangeSettings.badShCutoff.get().orElse(0);
     }
+
+    @Override
+    public boolean useOldWindowRestore() {
+        return VoiceChangeSettings.useOldWindowRestore.get().orElse(true);
+    }
 }

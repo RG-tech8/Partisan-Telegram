@@ -31,6 +31,7 @@ public class VoiceChangeSettings {
     public static final IntSetting badShMinThreshold = new IntSetting("badShMinThreshold", 2000);
     public static final IntSetting badShMaxThreshold = new IntSetting("badShMaxThreshold", 4500);
     public static final IntSetting badShCutoff = new IntSetting("badShCutoff", 0);
+    public static final BooleanSetting useOldWindowRestore = new BooleanSetting("useOldWindowRestore", true);
     public static final BooleanSetting showVoiceChangedNotification = new BooleanSetting("showVoiceChangedNotification", true);
     public static final StringSetSetting enabledVoiceChangeTypes = new StringSetSetting("enabledVoiceChangeTypes",
             Arrays.stream(VoiceChangeType.values()).map(Object::toString).collect(Collectors.toSet()));

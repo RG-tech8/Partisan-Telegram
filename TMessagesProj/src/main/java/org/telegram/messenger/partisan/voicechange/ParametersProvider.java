@@ -17,6 +17,8 @@ public interface ParametersProvider {
     int getBadSCutoff();
     int getBadShCutoff();
 
+    boolean useOldWindowRestore();
+
     default boolean spectrumDistortionEnabled() {
         return getSpectrumDistortionMap(48000) != null;
     }

@@ -26,6 +26,11 @@ public class CombinedSpectrumProcessor extends AbstractSpectrumProcessor {
         }
     }
 
+    @Override
+    protected boolean useOldWindowRestore() {
+        return parametersProvider.useOldWindowRestore();
+    }
+
     private void breakSounds(float[] magnitudes, float[] frequencies) {
         if (parametersProvider.badSEnabled() && breakSIfDetected(magnitudes, frequencies)) {
             return;
