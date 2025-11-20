@@ -1045,7 +1045,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 int len = audioRecorder.read(buffer, buffer.capacity());
                 if (voiceChanger != null) {
                     if (len > 0) {
-                        voiceChanger.write(java.util.Arrays.copyOf(buffer.array(), len));
+                        voiceChanger.write(org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.getBytesFromByteBuffer(buffer, len));
                     }
                     byte[] changedVoice = voiceChanger.readAll();
                     if (changedVoice.length == 0 && !voiceChanger.isVoiceChangingFinished()) {
