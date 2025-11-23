@@ -326,6 +326,6 @@
     <string name="EnableForIndividualAccounts">Уключыць для асобных акаўнтаў</string>
     <string name="EnableForVoiceMessages">Уключыць для галасавых паведамленняў</string>
     <string name="EnableForVideoMessages">Уключыць для відэапаведамленняў</string>
-    <string name="EnableForVideoCalls">Уключыць для званкоў</string>
+    <string name="EnableForVideoCalls">Уключыць для званкоў і стрымаў</string>
     <string name="VoiceChangeQualityDescription">Змена голасу высокай якасці добра працуе толькі на дастаткова новых і магутных прыладах і павялічвае разрад батарэі. Змяненне голасу нізкай якасці працуе нават на старых і слабых прыладах і зніжае разрад батарэі.</string>
 </resources>

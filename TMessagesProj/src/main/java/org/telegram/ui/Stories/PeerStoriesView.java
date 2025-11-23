@@ -276,6 +276,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
 
     private final AvatarDrawable avatarDrawable;
     PeerHeaderView headerView;
+    private View voiceChangedLabel;
     private final StoryLinesDrawable storyLines;
     private StoryPositionView storyPositionView;
 
@@ -1248,6 +1249,49 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             }
         });
         storyContainer.addView(headerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 17, 0, 0));
+
+        voiceChangedLabel = new View(context) {
+            private TextPaint textPaint;
+            private Paint backgroundPaint;
+
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(22), MeasureSpec.EXACTLY));
+            }
+
+            @Override
+            public void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+
+                if (textPaint == null) {
+                    textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+                    textPaint.setTypeface(AndroidUtilities.bold());
+                    textPaint.setTextSize(AndroidUtilities.dp(12));
+                    textPaint.setColor(Color.WHITE);
+                }
+                if (backgroundPaint == null) {
+                    backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                    backgroundPaint.setColor(0x3f000000);
+                }
+
+                float w = textPaint.measureText(LocaleController.getString(R.string.VoiceChanged));
+
+                AndroidUtilities.rectTmp.set(
+                        0,
+                        0,
+                        w + AndroidUtilities.dp(12),
+                        AndroidUtilities.dp(18)
+                );
+                canvas.drawRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.dp(18), AndroidUtilities.dp(18), backgroundPaint);
+
+                canvas.drawText(LocaleController.getString(R.string.VoiceChanged), (int) (AndroidUtilities.rectTmp.left) + AndroidUtilities.dp(6), (int) AndroidUtilities.rectTmp.bottom - AndroidUtilities.dp(6), textPaint);
+            }
+        };
+        voiceChangedLabel.setPadding(dp(3), 0, dp(3), dp(1));
+        if (!org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+            voiceChangedLabel.setVisibility(View.GONE);
+        }
+        storyContainer.addView(voiceChangedLabel, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 51,  17 + 12 + 18 + 10, 0, 0));
 
         topBulletinContainer = new FrameLayout(context);
 
@@ -4685,6 +4729,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.storiesLimitUpdate);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.userIsPremiumBlockedUpadted);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.didLoadSendAsPeers);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.voiceChangingStateChanged);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.emojiLoaded);
     }
 
@@ -4721,6 +4766,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.storiesLimitUpdate);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.userIsPremiumBlockedUpadted);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.didLoadSendAsPeers);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.voiceChangingStateChanged);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.emojiLoaded);
     }
 
@@ -4759,6 +4805,10 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             updatePosition();
         } else if (id == NotificationCenter.emojiLoaded) {
             storyCaptionView.captionTextview.invalidate();
+        } else if (id == NotificationCenter.voiceChangingStateChanged) {
+            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL);
+            //voiceChangedLabel.animate().alpha(show ? 1 : 0).setDuration(350).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+            voiceChangedLabel.setVisibility(show ? View.VISIBLE : View.GONE);
         } else if (id == NotificationCenter.stealthModeChanged) {
             checkStealthMode(true);
         } else if (id == NotificationCenter.storiesLimitUpdate) {

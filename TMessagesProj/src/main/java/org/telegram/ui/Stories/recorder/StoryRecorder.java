@@ -2954,7 +2954,7 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
                     textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
                     textPaint.setTypeface(AndroidUtilities.bold());
                     textPaint.setTextSize(AndroidUtilities.dp(13));
-                    textPaint.setColor(0xffffffff);
+                    textPaint.setColor(Color.WHITE);
                 }
                 if (backgroundPaint == null) {
                     backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);

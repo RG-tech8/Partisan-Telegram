@@ -326,6 +326,6 @@
     <string name="EnableForIndividualAccounts">Увімкнути для окремих акаунтів</string>
     <string name="EnableForVoiceMessages">Увімкнути для голосових повідомлень</string>
     <string name="EnableForVideoMessages">Увімкнути для відеоповідомлень</string>
-    <string name="EnableForVideoCalls">Увімкнути для дзвінків</string>
+    <string name="EnableForVideoCalls">Увімкнути для дзвінків та стримів</string>
     <string name="VoiceChangeQualityDescription">Зміна голосу високої якості добре працює лише на досить нових та потужних пристроях та збільшує розряд батареї. Зміна голосу низької якості працює навіть на старих та слабких пристроях та знижує розряд батареї.</string>
 </resources>
