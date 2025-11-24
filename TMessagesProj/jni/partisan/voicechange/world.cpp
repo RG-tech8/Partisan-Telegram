@@ -139,34 +139,37 @@ void BreakSounds(double** spectrogram, int fft_size, double* f0, int fs, int f0_
     delete[] freq_axis;
 }
 
-static void ShiftFormants(double shift, double ratio, int fs, int f0_length,
+static void ShiftFormants(double shift_from, double shift_to, double ratio_from, double ratio_to, int fs, int f0_length,
                           int fft_size, double* f0, double** spectrogram) {
     for (int i = 0; i < f0_length; ++i) {
-        f0[i] *= shift;
+        double current_shift = shift_from + (shift_to - shift_from) * ((double)i / (double)f0_length);
+        f0[i] *= current_shift;
     }
 
     double* freq_axis1 = new double[fft_size];
     double* freq_axis2 = new double[fft_size];
     double* spectrum1 = new double[fft_size];
     double* spectrum2 = new double[fft_size];
-
-    for (int i = 0; i <= fft_size / 2; ++i) {
-        freq_axis1[i] = ratio * i / fft_size * fs;
-        freq_axis2[i] = static_cast<double>(i) / fft_size * fs;
-    }
     for (int i = 0; i < f0_length; ++i) {
-        for (int j = 0; j <= fft_size / 2; ++j) {
+        for (int j = 0; j <= fft_size / 2; ++j)
             spectrum1[j] = log(spectrogram[i][j]);
+
+        double current_ratio = ratio_from + (ratio_to - ratio_from) * ((double)i / (double)f0_length);
+        for (int j = 0; j <= fft_size / 2; ++j) {
+            freq_axis1[j] = current_ratio * j / fft_size * fs;
+            freq_axis2[j] = static_cast<double>(j) / fft_size * fs;
         }
+
         interp1(freq_axis1, spectrum1, fft_size / 2 + 1, freq_axis2, fft_size / 2 + 1, spectrum2);
+
         for (int j = 0; j <= fft_size / 2; ++j) {
             spectrogram[i][j] = exp(spectrum2[j]);
         }
-        if (ratio >= 1.0) {
+        if (current_ratio >= 1.0) {
             continue;
         }
-        for (int j = static_cast<int>(fft_size / 2.0 * ratio); j <= fft_size / 2; ++j) {
-            spectrogram[i][j] = spectrogram[i][static_cast<int>(fft_size / 2.0 * ratio) - 1];
+        for (int j = static_cast<int>(fft_size / 2.0 * current_ratio); j <= fft_size / 2; ++j) {
+            spectrogram[i][j] = spectrogram[i][static_cast<int>(fft_size / 2.0 * current_ratio) - 1];
         }
     }
     delete[] spectrum1;
@@ -223,7 +226,7 @@ static void ClipAudioData(double *y, int y_length) {
     }
 }
 
-static void ChangeVoice(double shift, double ratio, int fs, const float* x_float, int x_length, float* y_float, int* y_length, int harvest,
+static void ChangeVoice(double shift_from, double shift_to, double ratio_from, double ratio_to, int fs, const float* x_float, int x_length, float* y_float, int* y_length, int harvest,
                         int bad_s_threshold, int bad_s_cutoff,
                         int bad_sh_min_threshold, int bad_sh_max_threshold, int bad_sh_cutoff) {
     double* x = new double[x_length];
@@ -247,8 +250,8 @@ static void ChangeVoice(double shift, double ratio, int fs, const float* x_float
                      bad_sh_min_threshold, bad_sh_max_threshold, bad_sh_cutoff);
     }
 
-    if (std::abs(shift - 1.0) > 1E-6 || std::abs(shift - 1.0) > 1E-6) {
-        ShiftFormants(shift, ratio, fs, world_parameters.f0_length,
+    if (std::abs(shift_from - 1.0) > 1E-6 || std::abs(shift_to - 1.0) > 1E-6 || std::abs(ratio_from - 1.0) > 1E-6 || std::abs(ratio_to - 1.0) > 1E-6) {
+        ShiftFormants(shift_from, shift_to, ratio_from, ratio_to, fs, world_parameters.f0_length,
                       world_parameters.fft_size, world_parameters.f0,
                       world_parameters.spectrogram);
     }
@@ -268,13 +271,13 @@ static void ChangeVoice(double shift, double ratio, int fs, const float* x_float
     delete[] y;
 }
 
-extern "C" JNIEXPORT jint Java_org_telegram_messenger_partisan_voicechange_WorldVocoder_changeVoice(JNIEnv *env, jclass clazz, jdouble shift, jdouble ratio, jint fs, jfloatArray x, jint x_length, jfloatArray y, jint harvest,
+extern "C" JNIEXPORT jint Java_org_telegram_messenger_partisan_voicechange_WorldVocoder_changeVoice(JNIEnv *env, jclass clazz, jdouble shift_from, jdouble shift_to, jdouble ratio_from, jdouble ratio_to, jint fs, jfloatArray x, jint x_length, jfloatArray y, jint harvest,
                                                                                                     jint bad_s_threshold, jint bad_s_cutoff,
                                                                                                     jint bad_sh_min_threshold, jint bad_sh_max_threshold, jint bad_sh_cutoff) {
     jfloat* xTmp = env->GetFloatArrayElements(x, nullptr);
     jfloat* yTmp = env->GetFloatArrayElements(y, nullptr);
     int yLength;
-    ChangeVoice(shift, ratio, fs, xTmp, x_length, yTmp, &yLength, harvest,
+    ChangeVoice(shift_from, shift_to, ratio_from, ratio_to, fs, xTmp, x_length, yTmp, &yLength, harvest,
                 bad_s_threshold, bad_s_cutoff,
                 bad_sh_min_threshold, bad_sh_max_threshold, bad_sh_cutoff);
     return yLength;

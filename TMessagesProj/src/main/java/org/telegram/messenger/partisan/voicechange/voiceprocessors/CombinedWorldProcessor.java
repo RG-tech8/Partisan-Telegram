@@ -18,8 +18,8 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
     private static final int bufferLengthMs = 350;
     public final int bufferSize;
     public final int bufferOverlap;
-    private double f0Delta = 0.0;
-    private double ratioDelta = 0.0;
+    private double currentF0Shift;
+    private double currentFormantRatio;
 
     private final ParametersProvider parametersProvider;
     private final int sampleRate;
@@ -42,14 +42,16 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
 
         outputAccumulator = new float[bufferSize * 2];
         osamp = bufferSize / (bufferSize - bufferOverlap);
-        initDeltas(parametersProvider);
+        initShifts();
     }
 
-    private void initDeltas(ParametersProvider parametersProvider) {
+    private void initShifts() {
+        currentF0Shift = parametersProvider.getF0Shift();
+        currentFormantRatio = parametersProvider.getFormantRatio();
         double maxFormantSpread = parametersProvider.getMaxFormantSpread();
         if (maxFormantSpread >= 1E-6) {
-            f0Delta = ThreadLocalRandom.current().nextDouble(-maxFormantSpread, maxFormantSpread);
-            ratioDelta = ThreadLocalRandom.current().nextDouble(-maxFormantSpread, maxFormantSpread);
+            currentF0Shift += ThreadLocalRandom.current().nextDouble(-maxFormantSpread, maxFormantSpread);
+            currentFormantRatio += ThreadLocalRandom.current().nextDouble(-maxFormantSpread, maxFormantSpread);
         }
     }
 
@@ -68,12 +70,14 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
     public boolean process(AudioEvent audioEvent) {
         AudioEvent audioEventCopy = cloneAudioEvent(audioEvent);
         audioEventQueue.add(audioEventCopy);
-        f0Delta = generateNewDelta(f0Delta);
-        double f0DeltaFinal = f0Delta;
-        ratioDelta = generateNewDelta(ratioDelta);
-        double ratioDeltaFinal = ratioDelta;
+        final double shiftFrom = currentF0Shift;
+        currentF0Shift = generateNewShift(parametersProvider.getF0Shift(), currentF0Shift);
+        final double shiftTo = currentF0Shift;
+        final double ratioFrom = currentFormantRatio;
+        currentFormantRatio = generateNewShift(parametersProvider.getFormantRatio(), currentFormantRatio);
+        final double ratioTo = currentFormantRatio;
         threadPoolExecutor.execute(() -> {
-            float[] shiftedAudioBuffer = changeVoice(audioEventCopy.getFloatBuffer(), f0DeltaFinal, ratioDeltaFinal);
+            float[] shiftedAudioBuffer = changeVoice(audioEventCopy.getFloatBuffer(), shiftFrom, shiftTo, ratioFrom, ratioTo);
             finalizingQueue.execute(() -> shiftingFinished(audioEventCopy, shiftedAudioBuffer));
         });
         return true;
@@ -88,24 +92,28 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
         return audioEventCopy;
     }
 
-    private double generateNewDelta(double oldDelta) {
+    private double generateNewShift(double defaultValue, double oldValue) {
         if (parametersProvider.getMaxFormantSpread() < 1E-6) {
-            return oldDelta;
+            return oldValue;
         }
-        double new_delta;
+        double newValue;
+        double minValue = defaultValue / (1.0 + parametersProvider.getMaxFormantSpread());
+        double maxValue = defaultValue * (1.0 + parametersProvider.getMaxFormantSpread());
         do {
-            double max_change = parametersProvider.getMaxFormantSpread() / 10.0;
+            double max_change = parametersProvider.getMaxFormantSpread() * 0.1;
             double change = ThreadLocalRandom.current().nextDouble(-max_change, max_change);
-            new_delta = oldDelta + change;
-        } while(new_delta < -parametersProvider.getMaxFormantSpread() || new_delta > parametersProvider.getMaxFormantSpread());
-        return new_delta;
+            newValue = oldValue + change;
+        } while(newValue < minValue || newValue > maxValue);
+        return newValue;
     }
 
-    private float[] changeVoice(float[] srcFloatBuffer, double f0Delta, double ratioDelta) {
+    private float[] changeVoice(float[] srcFloatBuffer, double shiftFrom, double shiftTo, double ratioFrom, double ratioTo) {
         float[] audioBufferResult = new float[srcFloatBuffer.length];
         WorldVocoder.changeVoice(
-                parametersProvider.getF0Shift() + f0Delta,
-                parametersProvider.getFormantRatio() + ratioDelta,
+                shiftFrom,
+                shiftTo,
+                ratioFrom,
+                ratioTo,
                 sampleRate,
                 srcFloatBuffer,
                 srcFloatBuffer.length,
