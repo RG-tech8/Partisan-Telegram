@@ -171,6 +171,7 @@ import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 import org.telegram.messenger.partisan.PartisanLog;
 import org.telegram.messenger.partisan.SecurityChecker;
 import org.telegram.messenger.partisan.secretgroups.EncryptedGroup;
+import org.telegram.messenger.partisan.settings.TesterSettings;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLObject;
@@ -13211,22 +13212,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         alert.setTitle("Enter tester settings password");
         alert.setView(editText);
         alert.setPositiveButton(LocaleController.getString("Done", R.string.Done), (dlg, whichButton) -> {
-            try {
-                String salt = "|_}H<{&U.?0c43*krr*bVFH6xt1Y`L}'";
-                byte[] bytes = (salt + editText.getText().toString() + salt).getBytes(StandardCharsets.UTF_8);
-                String hash = Utilities.bytesToHex(Utilities.computeSHA256(bytes, 0, bytes.length));
-                if (hash.equals("50FB2E837B1111E4F978D60AFC549F7B130AE65C455E9C04800357F9B06149BA")) {
-                    SharedConfig.activatedTesterSettingType = 2;
-                } else if (hash.equals("1F9A8AF5C7B0CFC4CB056E8B7F0ECDB301FD83105308BBAF4759A1B263378697")) {
-                    SharedConfig.activatedTesterSettingType = 1;
-                } else {
-                    SharedConfig.activatedTesterSettingType = 0;
-                }
-                SharedConfig.saveConfig();
-                updateRowsIds();
-                listAdapter.notifyDataSetChanged();
-            } catch (Exception ignored) {
-            }
+            TesterSettings.checkTesterSettingsPassword(editText.getText().toString());
+            updateRowsIds();
+            listAdapter.notifyDataSetChanged();
         });
         showDialog(alert.create());
     }

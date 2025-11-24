@@ -168,7 +168,7 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
                 new DelimiterItem(this).addCondition(TesterSettings::areTesterSettingsActivated),
 
                 benchmarkItem = new ButtonItem(this, "Benchmark", () -> benchmarkRatioText, view -> runBenchmark())
-                        .addCondition(TesterSettings::areTesterSettingsActivated)
+                        .addCondition(TesterSettings::areVoiceChangingSettingsVisible)
                         .addEnabledCondition(() -> isVoiceChangeEnabled() && originalOutputAudioBuffer != null),
         };
     }

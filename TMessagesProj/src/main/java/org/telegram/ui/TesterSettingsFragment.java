@@ -80,27 +80,27 @@ public class TesterSettingsFragment extends PartisanBaseFragment {
                 new DelimiterItem(this),
 
 
-                new HeaderItem(this, "Voice Changing"),
-                new SimpleEditableDataItem(this, "Spectrum Distortion Params", VoiceChangeSettings.spectrumDistortionParams),
-                new HeaderItem(this, "World F0 Shift"),
-                new SeekBarItem(this, VoiceChangeSettings.f0Shift, 0.2, 2.01, 0.025),
-                new HeaderItem(this, "World Formant Ratio"),
-                new SeekBarItem(this, VoiceChangeSettings.formantRatio, 0.2, 2.01, 0.025),
-                new HeaderItem(this, "Bad S Threshold"),
-                new SeekBarItem(this, VoiceChangeSettings.badSThreshold, 0, 15000, 250),
-                new HeaderItem(this, "Bad S Cutoff"),
-                new SeekBarItem(this, VoiceChangeSettings.badSCutoff, 0, 15000, 250),
-                new HeaderItem(this, "Bad Sh Min Threshold"),
-                new SeekBarItem(this, VoiceChangeSettings.badShMinThreshold, 0, 15000, 250),
-                new HeaderItem(this, "Bad Sh Max Threshold"),
-                new SeekBarItem(this, VoiceChangeSettings.badShMaxThreshold, 0, 15000, 250),
-                new HeaderItem(this, "Bad Sh Cutoff"),
-                new SeekBarItem(this, VoiceChangeSettings.badShCutoff, 0, 15000, 250),
-                new ToggleItem(this, "Harvest", VoiceChangeSettings.formantShiftingHarvest),
-                new HeaderItem(this, "Max Formant Spread"),
-                new SeekBarItem(this, VoiceChangeSettings.maxFormantSpread, 0.0, 1.0, 0.01),
-                new ToggleItem(this, "Use Old Window Restore", VoiceChangeSettings.useOldWindowRestore),
-                new DelimiterItem(this),
+                new HeaderItem(this, "Voice Changing").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SimpleEditableDataItem(this, "Spectrum Distortion Params", VoiceChangeSettings.spectrumDistortionParams).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new HeaderItem(this, "World F0 Shift").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SeekBarItem(this, VoiceChangeSettings.f0Shift, 0.2, 2.01, 0.025).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new HeaderItem(this, "World Formant Ratio").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SeekBarItem(this, VoiceChangeSettings.formantRatio, 0.2, 2.01, 0.025).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new HeaderItem(this, "Bad S Threshold").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SeekBarItem(this, VoiceChangeSettings.badSThreshold, 0, 15000, 250).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new HeaderItem(this, "Bad S Cutoff").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SeekBarItem(this, VoiceChangeSettings.badSCutoff, 0, 15000, 250).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new HeaderItem(this, "Bad Sh Min Threshold").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SeekBarItem(this, VoiceChangeSettings.badShMinThreshold, 0, 15000, 250).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new HeaderItem(this, "Bad Sh Max Threshold").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SeekBarItem(this, VoiceChangeSettings.badShMaxThreshold, 0, 15000, 250).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new HeaderItem(this, "Bad Sh Cutoff").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SeekBarItem(this, VoiceChangeSettings.badShCutoff, 0, 15000, 250).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new ToggleItem(this, "Harvest", VoiceChangeSettings.formantShiftingHarvest).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new HeaderItem(this, "Max Formant Spread").addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new SeekBarItem(this, VoiceChangeSettings.maxFormantSpread, 0.0, 1.0, 0.01).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new ToggleItem(this, "Use Old Window Restore", VoiceChangeSettings.useOldWindowRestore).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
+                new DelimiterItem(this).addCondition(TesterSettings::areVoiceChangingSettingsVisible),
 
 
                 new HeaderItem(this, "Other Settings"),
@@ -115,7 +115,7 @@ public class TesterSettingsFragment extends PartisanBaseFragment {
                         value -> SharedConfig.showHideDialogIsNotSafeWarning = value
                 ),
                 new SimpleEditableDataItem(this, "Phone Override", TesterSettings.phoneOverride)
-                        .addCondition(() -> SharedConfig.activatedTesterSettingType >= 2),
+                        .addCondition(() -> SharedConfig.activatedTesterSettingType == 2),
                 new ButtonItem(this, "Reset Security Issues", view -> {
                     setSecurityIssues(new HashSet<>());
                     SecurityChecker.checkSecurityIssuesAndSave(getParentActivity(), getCurrentAccount(), true);
@@ -131,7 +131,7 @@ public class TesterSettingsFragment extends PartisanBaseFragment {
                         ()  -> Integer.toString(getUserConfig().savedChannels.size())
                 ).setMultiline(),
                 new ToggleItem(this, "Force Allow Screenshots", TesterSettings.forceAllowScreenshots)
-                        .addCondition(() -> SharedConfig.activatedTesterSettingType >= 2),
+                        .addCondition(() -> SharedConfig.activatedTesterSettingType == 2),
                 new ToggleItem(this, "Save Logcat After Restart", TesterSettings.saveLogcatAfterRestart),
                 new ToggleItem(this, "Clear Logs With Cache", TesterSettings.clearLogsWithCache),
                 new ToggleItem(this, "Force Search During Deletion", TesterSettings.forceSearchDuringDeletion),
