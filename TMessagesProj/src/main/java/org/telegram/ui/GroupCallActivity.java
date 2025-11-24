@@ -223,7 +223,7 @@ import java.util.stream.Collectors;
 import me.vkryl.android.animator.BoolAnimator;
 import me.vkryl.android.animator.FactorAnimator;
 
-public class GroupCallActivity extends BottomSheet implements NotificationCenter.NotificationCenterDelegate, VoIPService.StateListener, FactorAnimator.Target {
+public class GroupCallActivity extends BottomSheet implements NotificationCenter.NotificationCenterDelegate, VoIPService.StateListener, FactorAnimator.Target, GroupCallMessagesController.CallMessageListener {
 
     public final static int TABLET_LIST_SIZE = 320;
     public static final long TRANSITION_DURATION = 350;
@@ -1169,6 +1169,9 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         }
         delayedGroupCallUpdated = true;
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.groupCallVisibilityChanged);
+        if (call != null && call.getInputGroupCall(false) != null) {
+            GroupCallMessagesController.getInstance(currentAccount).unsubscribeFromCallMessages(call.getInputGroupCall(false).id, this);
+        }
         accountInstance.getNotificationCenter().removeObserver(this, NotificationCenter.needShowAlert);
         accountInstance.getNotificationCenter().removeObserver(this, NotificationCenter.groupCallUpdated);
         accountInstance.getNotificationCenter().removeObserver(this, NotificationCenter.chatInfoDidLoad);
@@ -5345,7 +5348,10 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         containerView.addView(voiceChangedLabel, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 6, 0, 0));
         voiceChangedLabel.setText(org.telegram.messenger.LocaleController.getString(org.telegram.messenger.R.string.VoiceChanged));
         if (!org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
-        voiceChangedLabel.setVisibility(View.GONE);
+            voiceChangedLabel.setVisibility(View.GONE);
+        }
+        if (call != null && call.getInputGroupCall(false) != null) {
+            GroupCallMessagesController.getInstance(currentAccount).subscribeToCallMessages(call.getInputGroupCall(false).id, this);
         }
 
         containerView.addView(buttonsContainer);
@@ -5952,6 +5958,31 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
     }
 
 
+
+    @Override
+    public void onNewGroupCallMessage(long callId, GroupCallMessage message) {
+        if (voiceChangedLabel.getVisibility() != View.VISIBLE || groupCallMessagesListView.getAdapter() == null) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            if (groupCallMessagesListView.getAdapter().getItemCount() > 0) {
+                voiceChangedLabel.setVisibility(View.GONE);
+            }
+        });
+    }
+
+    @Override
+    public void onPopGroupCallMessage() {
+        if (voiceChangedLabel.getVisibility() != View.GONE || groupCallMessagesListView.getAdapter() == null
+                || !org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            if (groupCallMessagesListView.getAdapter().getItemCount() == 0) {
+                voiceChangedLabel.setVisibility(View.VISIBLE);
+            }
+        });
+    }
 
     @NonNull
     private WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
