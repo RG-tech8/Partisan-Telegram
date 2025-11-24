@@ -54,11 +54,12 @@ public class VoiceChangeSettingsGenerator {
                 .collect(Collectors.toList());
         if (VoiceChangeSettings.aggressiveChangeLevel.get().orElse(true)) {
             generateBadSoundsParams();
+            frequencies.remove(random.nextInt(frequencies.size()));
         } else {
             resetBadSoundsParams();
+            frequencies.remove(generateRandomInt(2, 4));
             frequencies.remove(0);
         }
-        frequencies.remove(random.nextInt(frequencies.size()));
         generateSpectrumDistortionParams(frequencies);
     }
 
