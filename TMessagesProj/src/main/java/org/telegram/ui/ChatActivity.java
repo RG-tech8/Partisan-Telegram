@@ -9048,7 +9048,7 @@ public class ChatActivity extends BaseFragment implements
 
         if (startLoadFromMessageRestored) {
             updatePagedownButtonVisibility(false);
-            AndroidUtilities.runOnUIThread(() -> sideControlsButtonsLayout.setButtonCount(prevSetUnreadCount, 0, false));
+            AndroidUtilities.runOnUIThread(() -> sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN, prevSetUnreadCount, false));
         }
         return fragmentView;
     }
