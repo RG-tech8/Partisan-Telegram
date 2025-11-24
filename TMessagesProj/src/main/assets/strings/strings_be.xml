@@ -310,9 +310,9 @@
     <string name="VoiceChangeDescription">Змена голасу дазваляе пазбегнуць дэананімізацыі пры адпраўцы галасавых паведамленняў, кружочкаў і пры званках.</string>
     <string name="VoiceChangeLevel">Узровень змены голасу</string>
     <string name="AggressiveVoiceChange">Агрэсіўная змена голасу</string>
-    <string name="AggressiveVoiceChangeDescription">Голас будзе моцна змяняцца для зніжэння верагоднасці дэананімізацыі. Магчымае значнае пагаршэнне гучання голасу.</string>
+    <string name="AggressiveVoiceChangeDescription">Голас будзе моцна змяняцца для зніжэння верагоднасці дэананімізацыі і можа быць менш натуральным.</string>
     <string name="ModerateVoiceChange">Умераная змена голасу</string>
-    <string name="ModerateVoiceChangeDescription">Голас будзе змяняцца менш моцна для паляпшэння якасці гучання. Рызыка дэананімізацыі будзе нізкай, але вышэйшай, чым пры агрэсіўнай змене.</string>
+    <string name="ModerateVoiceChangeDescription">Голас будзе змяняцца менш моцна і будзе заставацца больш натуральным. Рызыка дэананімізацыі будзе нізкай, але вышэйшай, чым пры агрэсіўнай змене.</string>
     <string name="GenerateNewVoiceChangeParameters">Згенераваць новыя параметры</string>
     <string name="GenerateNewVoiceChangeParametersDescription">Згенераваць новыя параметры голасу, змяніўшы тым самым яго гучанне.</string>
     <string name="CheckVoiceChanging">Праверыць змену голасу</string>
@@ -327,5 +327,5 @@
     <string name="EnableForVoiceMessages">Уключыць для галасавых паведамленняў</string>
     <string name="EnableForVideoMessages">Уключыць для відэапаведамленняў</string>
     <string name="EnableForVideoCalls">Уключыць для званкоў і стрымаў</string>
-    <string name="VoiceChangeQualityDescription">Змена голасу высокай якасці добра працуе толькі на дастаткова новых і магутных прыладах і павялічвае разрад батарэі. Змяненне голасу нізкай якасці працуе нават на старых і слабых прыладах і зніжае разрад батарэі.</string>
+    <string name="VoiceChangeQualityDescription">Змена голасу высокай якасці зробіць гаворку больш разборлівай, але павялічыць разрад батарэі і можа не працаваць правільна на старых тэлефонах. Змяненне голасу нізкай якасці працуе нават на старых і слабых прыладах і зніжае разрад батарэі, але зробіць голас менш натуральным.</string>
 </resources>

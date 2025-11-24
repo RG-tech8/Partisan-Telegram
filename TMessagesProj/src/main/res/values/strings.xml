@@ -10340,9 +10340,9 @@
     <string name="VoiceChangeDescription">Changing your voice allows you to avoid deanonymization when sending voice messages, circles, and making calls.</string>
     <string name="VoiceChangeLevel">Voice Change Level</string>
     <string name="AggressiveVoiceChange">Aggressive Voice Change</string>
-    <string name="AggressiveVoiceChangeDescription">The voice will be heavily modified to reduce the risk of deanonymization. Significant deterioration in voice quality is possible.</string>
+    <string name="AggressiveVoiceChangeDescription">The voice will be heavily modified to reduce the risk of deanonymization and may sound less natural.</string>
     <string name="ModerateVoiceChange">Moderate Voice Change</string>
-    <string name="ModerateVoiceChangeDescription">The voice will be changed less to improve voice quality. The risk of deanonymization will be low, but higher than with aggressive change.</string>
+    <string name="ModerateVoiceChangeDescription">The voice will be changed less and will remain more natural. The risk of deanonymization will be low, but higher than with aggressive change.</string>
     <string name="GenerateNewVoiceChangeParameters">Generate New Parameters</string>
     <string name="GenerateNewVoiceChangeParametersDescription">Generate new voice parameters, thereby changing its sound.</string>
     <string name="CheckVoiceChanging">Check Voice Changing</string>
@@ -10357,5 +10357,5 @@
     <string name="EnableForVoiceMessages">Enable for Voice Messages</string>
     <string name="EnableForVideoMessages">Enable for Video Messages</string>
     <string name="EnableForVideoCalls">Enable for Calls and Streams</string>
-    <string name="VoiceChangeQualityDescription">High-quality voice changer only works well on relatively new and powerful devices and increases battery drain. Low-quality voice changer works even on old and slow devices and reduces battery drain.</string>
+    <string name="VoiceChangeQualityDescription">High-quality voice change will make speech more intelligible, but will drain battery power and may not work properly on older phones. Low-quality voice change works even on older and slower devices and reduces battery drain, but will make the voice sound less natural.</string>
 </resources>

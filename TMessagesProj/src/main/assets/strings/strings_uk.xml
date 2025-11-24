@@ -310,9 +310,9 @@
     <string name="VoiceChangeDescription">Зміна голосу дозволяє уникнути деанонімізації при надсиланні голосових повідомлень, кружечків та дзвінків.</string>
     <string name="VoiceChangeLevel">Рівень зміни голосу</string>
     <string name="AggressiveVoiceChange">Агресивна зміна голосу</string>
-    <string name="AggressiveVoiceChangeDescription">Голос сильно змінюватиметься для зниження ймовірності деанонімізації. Можливе значне погіршення звучання голосу.</string>
+    <string name="AggressiveVoiceChangeDescription">Голос сильно змінюватиметься для зниження ймовірності деанонімізації і може бути менш натуральним.</string>
     <string name="ModerateVoiceChange">Помірна зміна голосу</string>
-    <string name="ModerateVoiceChangeDescription">Голос буде змінюватися менш сильно для покращення якості звучання. Ризик деанонімізації буде низьким, але вищим, ніж при агресивній зміні.</string>
+    <string name="ModerateVoiceChangeDescription">Голос буде змінюватися менш сильно і залишатиметься натуральним. Ризик деанонімізації буде низьким, але вищим, ніж при агресивній зміні.</string>
     <string name="GenerateNewVoiceChangeParameters">Згенерувати нові параметри</string>
     <string name="GenerateNewVoiceChangeParametersDescription">Згенерувати нові параметри голосу, змінивши цим його звучання.</string>
     <string name="CheckVoiceChanging">Перевірити зміну голосу</string>
@@ -327,5 +327,5 @@
     <string name="EnableForVoiceMessages">Увімкнути для голосових повідомлень</string>
     <string name="EnableForVideoMessages">Увімкнути для відеоповідомлень</string>
     <string name="EnableForVideoCalls">Увімкнути для дзвінків та стримів</string>
-    <string name="VoiceChangeQualityDescription">Зміна голосу високої якості добре працює лише на досить нових та потужних пристроях та збільшує розряд батареї. Зміна голосу низької якості працює навіть на старих та слабких пристроях та знижує розряд батареї.</string>
+    <string name="VoiceChangeQualityDescription">Зміна голосу високої якості зробить мову більш розбірливою, але збільшить розряд батареї і може не працювати правильно на старих телефонах. Зміна голосу низької якості працює навіть на старих та слабких пристроях та знижує розряд батареї, але зробить голос менш натуральним.</string>
 </resources>
