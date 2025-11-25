@@ -42,17 +42,19 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
 
         outputAccumulator = new float[bufferSize * 2];
         osamp = bufferSize / (bufferSize - bufferOverlap);
-        initShifts();
+
+        currentF0Shift = generateFirstShift(parametersProvider.getF0Shift());
+        currentFormantRatio += generateFirstShift(parametersProvider.getFormantRatio());
     }
 
-    private void initShifts() {
-        currentF0Shift = parametersProvider.getF0Shift();
-        currentFormantRatio = parametersProvider.getFormantRatio();
+    private double generateFirstShift(double defaultValue) {
         double maxFormantSpread = parametersProvider.getMaxFormantSpread();
-        if (maxFormantSpread >= 1E-6) {
-            currentF0Shift += ThreadLocalRandom.current().nextDouble(-maxFormantSpread, maxFormantSpread);
-            currentFormantRatio += ThreadLocalRandom.current().nextDouble(-maxFormantSpread, maxFormantSpread);
+        if (maxFormantSpread < 1E-6) {
+            return defaultValue;
         }
+        double minValue = defaultValue / (1.0 + maxFormantSpread);
+        double maxValue = defaultValue * (1.0 + maxFormantSpread);
+        return ThreadLocalRandom.current().nextDouble(minValue, maxValue);
     }
 
     @Override
