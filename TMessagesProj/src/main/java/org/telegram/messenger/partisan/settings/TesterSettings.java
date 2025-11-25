@@ -26,7 +26,9 @@ public class TesterSettings {
     public static void loadSettings() {
         for (Setting<?> setting : getAllSettings()) {
             setting.load();
-            setting.setConditionForGet(TesterSettings::areTesterSettingsActivated);
+            if (setting != phoneOverride && setting != forceAllowScreenshots) {
+                setting.setConditionForGet(TesterSettings::areTesterSettingsActivated);
+            }
         }
     }
 
