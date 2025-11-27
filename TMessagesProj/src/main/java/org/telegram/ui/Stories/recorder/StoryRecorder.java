@@ -7435,7 +7435,7 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
                 recordControl.updateGalleryImage();
             }
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE);
+            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE);
             voiceChangedLabel.animate().alpha(show ? 1 : 0).setDuration(350).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
         } else if (id == NotificationCenter.storiesLimitUpdate) {
             if (currentPage == PAGE_PREVIEW) {

@@ -1274,7 +1274,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                     recordTime.setText(AndroidUtilities.formatLongDuration(videoRecordTime));
                     AndroidUtilities.runOnUIThread(videoRecordRunnable, 1000);
                 };
-                if (org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE)) {
+                if (org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(parentAlert.currentAccount, org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE)) {
                     AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, true);
                 }
                 AndroidUtilities.lockOrientation(baseFragment.getParentActivity());
@@ -4364,7 +4364,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                 updateAlbumsDropDown();
             }
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE);
+            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(parentAlert.currentAccount, org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE);
             AndroidUtilities.updateViewVisibilityAnimated(voiceChangedLabel, show);
         } else if (id == NotificationCenter.cameraInitied) {
             checkCamera(false);

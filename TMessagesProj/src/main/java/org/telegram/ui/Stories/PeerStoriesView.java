@@ -1288,7 +1288,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
             }
         };
         voiceChangedLabel.setPadding(dp(3), 0, dp(3), dp(1));
-        if (!org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+        if (!org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
             voiceChangedLabel.setVisibility(View.GONE);
         }
         storyContainer.addView(voiceChangedLabel, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 51,  17 + 12 + 18 + 10, 0, 0));
@@ -4806,7 +4806,7 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         } else if (id == NotificationCenter.emojiLoaded) {
             storyCaptionView.captionTextview.invalidate();
         } else if (id == NotificationCenter.voiceChangingStateChanged) {
-            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL);
+            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL);
             //voiceChangedLabel.animate().alpha(show ? 1 : 0).setDuration(350).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
             voiceChangedLabel.setVisibility(show ? View.VISIBLE : View.GONE);
         } else if (id == NotificationCenter.stealthModeChanged) {

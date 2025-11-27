@@ -1,5 +1,7 @@
 package org.telegram.messenger.partisan.voicechange;
 
+import android.util.Pair;
+
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.UserConfig;
@@ -11,7 +13,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class VoiceChangerUtils {
-    private static final Map<VoiceChanger, VoiceChangeType> runningVoiceChangers = new HashMap<>();
+    private static final Map<VoiceChanger, Pair<Integer, VoiceChangeType>> runningVoiceChangers = new HashMap<>();
 
     public static VoiceChanger createVoiceChangerIfNeeded(int accountNum, VoiceChangeType type, int sampleRate) {
         return genericCreateVoiceChangerIfNeeded(
@@ -34,7 +36,7 @@ public class VoiceChangerUtils {
             return null;
         }
         final T voiceChanger = constructor.get();
-        runningVoiceChangers.put(voiceChanger, type);
+        runningVoiceChangers.put(voiceChanger, new Pair<>(accountNum, type));
         AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.voiceChangingStateChanged));
         voiceChanger.setStopCallback(() -> {
             runningVoiceChangers.remove(voiceChanger);
@@ -68,12 +70,14 @@ public class VoiceChangerUtils {
                 || parametersProvider.badShEnabled();
     }
 
-    public static boolean needShowVoiceChangeNotification(VoiceChangeType type) {
-        return isAnyVoiceChangerRunning(type) && VoiceChangeSettings.showVoiceChangedNotification.get().orElse(true);
+    public static boolean needShowVoiceChangeNotification(int accountNum, VoiceChangeType type) {
+        return isAnyVoiceChangerRunning(accountNum, type)
+                && VoiceChangeSettings.showVoiceChangedNotification.get().orElse(true);
     }
 
-    private static boolean isAnyVoiceChangerRunning(VoiceChangeType type) {
-        return runningVoiceChangers.containsValue(type);
+    private static boolean isAnyVoiceChangerRunning(int accountNum, VoiceChangeType type) {
+        return runningVoiceChangers.values().stream()
+                .anyMatch(pair -> accountNum == pair.first && type == pair.second);
     }
 
     public static byte[] getBytesFromByteBuffer(ByteBuffer buffer, int len) {

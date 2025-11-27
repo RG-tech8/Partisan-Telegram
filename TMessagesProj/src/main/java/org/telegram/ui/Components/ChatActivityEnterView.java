@@ -12772,7 +12772,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 slideToLayout.draw(canvas);
                 canvas.restore();
 
-                if (VoiceChangerUtils.needShowVoiceChangeNotification(VoiceChangeType.VOICE_MESSAGE) || VoiceChangerUtils.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
+                if (VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, VoiceChangeType.VOICE_MESSAGE) || VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, VoiceChangeType.VIDEO_MESSAGE)) {
                     canvas.save();
                     canvas.translate((int) x + slideDelta + (slideToCancelWidth - voiceChangedWidth) / 2, (getMeasuredHeight() - slideToLayout.getHeight()) / 2f + offsetY + slideToLayout.getHeight());
                     voiceChangedLayout.draw(canvas);
@@ -12807,7 +12807,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 cancelLayout.draw(canvas);
                 canvas.restore();
 
-                if (VoiceChangerUtils.needShowVoiceChangeNotification(VoiceChangeType.VOICE_MESSAGE) || VoiceChangerUtils.needShowVoiceChangeNotification(VoiceChangeType.VIDEO_MESSAGE)) {
+                if (VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, VoiceChangeType.VOICE_MESSAGE) || VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, VoiceChangeType.VIDEO_MESSAGE)) {
                     canvas.save();
                     canvas.translate(xi + (cancelWidth - voiceChangedWidth) / 2, yi + cancelLayout.getHeight());
                     voiceChangedLayout.draw(canvas);
