@@ -32,8 +32,10 @@ import org.telegram.messenger.partisan.ui.PartisanBaseFragment;
 import org.telegram.messenger.partisan.ui.RadioButtonItem;
 import org.telegram.messenger.partisan.ui.ToggleItem;
 import org.telegram.messenger.partisan.ui.ValuesSlideChooseItem;
+import org.telegram.messenger.voip.VoIPService;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Cells.TextCell;
+import org.telegram.ui.Components.AlertsCreator;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -83,6 +85,7 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
                         new VoiceChangeSettingsGenerator().generateParameters(true);
                     }
                     listAdapter.notifyItemRangeChanged(0, listAdapter.getItemCount());
+                    showCurrentCallWillNotBeAffectedDialogIfNeeded();
                 }),
                 new DelimiterItem(this),
 
@@ -153,7 +156,10 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
                         .addEnabledCondition(this::isVoiceChangeEnabled),
                 new ToggleItem(this, getString(R.string.EnableForVideoCalls),
                         () -> VoiceChangeSettings.isVoiceChangeTypeEnabled(VoiceChangeType.CALL),
-                        value -> VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.CALL))
+                        value -> {
+                            VoiceChangeSettings.toggleVoiceChangeType(VoiceChangeType.CALL);
+                            showCurrentCallWillNotBeAffectedDialogIfNeeded();
+                        })
                         .addEnabledCondition(this::isVoiceChangeEnabled),
                 new DelimiterItem(this),
 
@@ -175,6 +181,19 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
 
     private boolean isVoiceChangeEnabled() {
         return VoiceChangeSettings.voiceChangeEnabled.get().orElse(false);
+    }
+
+    private void showCurrentCallWillNotBeAffectedDialogIfNeeded() {
+        if (isInCall()) {
+            AlertDialog dialog = AlertsCreator
+                    .createSimpleAlert(getContext(), getString(R.string.ChangesWillBeAppliedToTheNextCall))
+                    .create();
+            showDialog(dialog);
+        }
+    }
+
+    private static boolean isInCall() {
+        return VoIPService.getSharedInstance() != null;
     }
 
     private void changeAggressiveness(boolean aggressive) {
