@@ -129,6 +129,7 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
                             new VoiceChangeSettingsGenerator().generateParameters(true);
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                             Toast.makeText(getContext(), getString(R.string.VoiceChanged), Toast.LENGTH_SHORT).show();
+                            showCurrentCallWillNotBeAffectedDialogIfNeeded();
                         })
                         .addEnabledCondition(this::isVoiceChangeEnabled),
                 new DescriptionItem(this, getString(R.string.GenerateNewVoiceChangeParametersDescription)),
