@@ -1138,7 +1138,7 @@ public class PhotoPickerActivity extends BaseFragment implements NotificationCen
                                 org.telegram.messenger.fakepasscode.RemoveAfterReadingMessages.delays.putIfAbsent("" + currentAccount, 5000);
                                 AlertsCreator.createScheduleDeleteTimePickerDialog(getContext(), org.telegram.messenger.fakepasscode.RemoveAfterReadingMessages.delays.get("" + currentAccount),
                                         (notify, delay, scheduleRepeatPeriod) -> {
-                                            sendSelectedPhotos(true, 0, delay);
+                                            sendSelectedPhotos(true, 0, 0, delay);
                                             org.telegram.messenger.fakepasscode.RemoveAfterReadingMessages.delays.put("" + currentAccount, delay);
                                             org.telegram.messenger.fakepasscode.RemoveAfterReadingMessages.save();
                                         });
