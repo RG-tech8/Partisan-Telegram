@@ -21,7 +21,7 @@ public class RealTimeVoiceChanger extends VoiceChanger {
     @Override
     protected void addIntermediateDispatcherNodesToChain() throws IOException {
         super.addIntermediateDispatcherNodesToChain();
-        addIntermediateDispatcherNode(new TimeStretcher(new TesterSettingsParametersProvider() {
+        addIntermediateDispatcherNode(new TimeStretcher(new CachedVoiceChangerSettingsParametersProvider() {
             @Override
             public double getTimeStretchFactor() {
                 return 1.0 + additionalSpeedupFactor;

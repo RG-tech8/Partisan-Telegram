@@ -314,7 +314,7 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
         }
         listView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         final long startTime = System.currentTimeMillis();
-        VoiceChanger benchmarkVoiceChanger = new VoiceChanger(new TesterSettingsParametersProvider(), sampleRate);
+        VoiceChanger benchmarkVoiceChanger = new VoiceChanger(new CachedVoiceChangerSettingsParametersProvider(), sampleRate);
         benchmarkVoiceChanger.setFinishedCallback(() -> AndroidUtilities.runOnUIThread(() -> onBenchmarkFinished(startTime)));
         benchmarkVoiceChanger.write(originalOutputAudioBuffer.toByteArray());
         benchmarkVoiceChanger.notifyWritingFinished();
@@ -407,7 +407,7 @@ public class VoiceChangeSettingsFragment extends PartisanBaseFragment {
             originalOutputAudioBuffer = new ByteArrayOutputStream();
             audioRecorder = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, recordBufferSize);
             audioRecorder.startRecording();
-            voiceChanger = new VoiceChanger(new TesterSettingsParametersProvider(), audioRecorder.getSampleRate());
+            voiceChanger = new VoiceChanger(new CachedVoiceChangerSettingsParametersProvider(), audioRecorder.getSampleRate());
             voiceChanger.setFinishedCallback(() -> recordQueue.postRunnable(this::stopRecordingInternal));
             recordQueue.postRunnable(recordRunnable);
         } catch (Exception e) {

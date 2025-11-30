@@ -19,7 +19,7 @@ public class VoiceChangerUtils {
         return genericCreateVoiceChangerIfNeeded(
                 accountNum,
                 type,
-                () -> new VoiceChanger(new TesterSettingsParametersProvider(), sampleRate)
+                () -> new VoiceChanger(new CachedVoiceChangerSettingsParametersProvider(), sampleRate)
         );
     }
 
@@ -27,7 +27,7 @@ public class VoiceChangerUtils {
         return genericCreateVoiceChangerIfNeeded(
                 accountNum,
                 type,
-                () -> new RealTimeVoiceChanger(new TesterSettingsParametersProvider(), sampleRate)
+                () -> new RealTimeVoiceChanger(new CachedVoiceChangerSettingsParametersProvider(), sampleRate)
         );
     }
 
@@ -63,7 +63,7 @@ public class VoiceChangerUtils {
     }
 
     private static boolean anyParameterSet() {
-        ParametersProvider parametersProvider = new TesterSettingsParametersProvider();
+        ParametersProvider parametersProvider = new CachedVoiceChangerSettingsParametersProvider();
         return parametersProvider.spectrumDistortionEnabled()
                 || parametersProvider.formantShiftingEnabled()
                 || parametersProvider.badSEnabled()

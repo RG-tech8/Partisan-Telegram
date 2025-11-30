@@ -6,16 +6,44 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class TesterSettingsParametersProvider implements ParametersProvider {
+public class CachedVoiceChangerSettingsParametersProvider implements ParametersProvider {
+    private final double timeStretchFactor;
+    private final String spectrumDistortionParams;
+    private final double f0Shift;
+    private final double formantRatio;
+    private final boolean formantShiftingHarvest;
+    private final double maxFormantSpread;
+    private final int badSThreshold;
+    private final int badShMinThreshold;
+    private final int badShMaxThreshold;
+    private final int badSCutoff;
+    private final int badShCutoff;
+    private final boolean useOldWindowRestore;
+
+    public CachedVoiceChangerSettingsParametersProvider() {
+        timeStretchFactor = 1.0;
+        spectrumDistortionParams = VoiceChangeSettings.spectrumDistortionParams.get().orElse("");
+        f0Shift = VoiceChangeSettings.f0Shift.get().orElse(1.0f);
+        formantRatio = VoiceChangeSettings.formantRatio.get().orElse(1.0f);
+        formantShiftingHarvest = VoiceChangeSettings.formantShiftingHarvest.get().orElse(false);
+        maxFormantSpread = VoiceChangeSettings.maxFormantSpread.get().orElse(0.0f);
+        badSThreshold = VoiceChangeSettings.badSThreshold.get().orElse(4500);
+        badShMinThreshold = VoiceChangeSettings.badShMinThreshold.get().orElse(2000);
+        badShMaxThreshold = VoiceChangeSettings.badShMaxThreshold.get().orElse(4500);
+        badSCutoff = VoiceChangeSettings.badSCutoff.get().orElse(0);
+        badShCutoff = VoiceChangeSettings.badShCutoff.get().orElse(0);
+        useOldWindowRestore = VoiceChangeSettings.useOldWindowRestore.get().orElse(true);
+    }
+
     @Override
     public double getTimeStretchFactor() {
-        return 1.0;
+        return timeStretchFactor;
     }
 
     @Override
     public Map<Integer, Integer> getSpectrumDistortionMap(int sampleRate) {
         Map<Integer, Integer> distortionMap = accumulateDistortionParams(
-                VoiceChangeSettings.spectrumDistortionParams.get().orElse(""),
+                spectrumDistortionParams,
                 new HashMap<>(),
                 (map, distortionParts) -> {
                     int fromHz = Integer.parseInt(distortionParts[0]);
@@ -51,51 +79,51 @@ public class TesterSettingsParametersProvider implements ParametersProvider {
 
     @Override
     public double getF0Shift() {
-        return VoiceChangeSettings.f0Shift.get().orElse(1.0f);
+        return f0Shift;
     }
 
     @Override
     public double getFormantRatio() {
-        return VoiceChangeSettings.formantRatio.get().orElse(1.0f);
+        return formantRatio;
     }
 
     @Override
     public boolean shiftFormantsWithHarvest() {
-        return VoiceChangeSettings.formantShiftingHarvest.get().orElse(false);
+        return formantShiftingHarvest;
     }
 
     @Override
     public double getMaxFormantSpread() {
-        return VoiceChangeSettings.maxFormantSpread.get().orElse(0.0f);
+        return maxFormantSpread;
     }
 
     @Override
     public int getBadSThreshold() {
-        return VoiceChangeSettings.badSThreshold.get().orElse(4500);
+        return badSThreshold;
     }
 
     @Override
     public int getBadShMinThreshold() {
-        return VoiceChangeSettings.badShMinThreshold.get().orElse(2000);
+        return badShMinThreshold;
     }
 
     @Override
     public int getBadShMaxThreshold() {
-        return VoiceChangeSettings.badShMaxThreshold.get().orElse(4500);
+        return badShMaxThreshold;
     }
 
     @Override
     public int getBadSCutoff() {
-        return VoiceChangeSettings.badSCutoff.get().orElse(0);
+        return badSCutoff;
     }
 
     @Override
     public int getBadShCutoff() {
-        return VoiceChangeSettings.badShCutoff.get().orElse(0);
+        return badShCutoff;
     }
 
     @Override
     public boolean useOldWindowRestore() {
-        return VoiceChangeSettings.useOldWindowRestore.get().orElse(true);
+        return useOldWindowRestore;
     }
 }
