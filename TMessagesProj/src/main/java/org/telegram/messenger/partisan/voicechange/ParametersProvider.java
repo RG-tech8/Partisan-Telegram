@@ -6,7 +6,10 @@ public interface ParametersProvider {
     double getTimeStretchFactor();
     Map<Integer, Integer> getSpectrumDistortionMap(int sampleRate);
     double getF0Shift();
-    double getFormantRatio();
+    double getLowRatio();
+    double getMidRatio();
+    double getHighRatio();
+    FormantShiftLimits getFormantShiftLimits(double currentShift);
     boolean shiftFormantsWithHarvest();
     double getMaxFormantSpread();
 
@@ -25,7 +28,9 @@ public interface ParametersProvider {
 
     default boolean formantShiftingEnabled() {
         return Math.abs(getF0Shift() - 1.0) > 0.01
-                || Math.abs(getFormantRatio() - 1.0) > 0.01;
+                || Math.abs(getLowRatio() - 1.0) > 0.01
+                || Math.abs(getMidRatio() - 1.0) > 0.01
+                || Math.abs(getHighRatio() - 1.0) > 0.01;
     }
 
     default boolean badSEnabled() {

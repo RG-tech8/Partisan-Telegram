@@ -8,6 +8,10 @@ import java.util.stream.Collectors;
 
 public class VoiceChangeSettingsGenerator {
     private static final int[] BASE_FREQUENCIES = new int[] {200, 600, 2000, 6000};
+    public static final float MIN_AGGRESSIVE_SHIFT = 1.2f;
+    public static final float MAX_AGGRESSIVE_SHIFT = 1.7f;
+    public static final float MIN_MODERATE_SHIFT = 1.2f;
+    public static final float MAX_MODERATE_SHIFT = 1.4f;
     private Random random;
 
     public void generateParameters(boolean newSeed) {
@@ -38,11 +42,11 @@ public class VoiceChangeSettingsGenerator {
             } else {
                 resetBadSoundsParams();
             }
-            generateFormantParams(1.4f, 1.7f);
+            generateFormantParams(MIN_AGGRESSIVE_SHIFT, MAX_AGGRESSIVE_SHIFT);
             VoiceChangeSettings.maxFormantSpread.set(generateRandomFloat(0.15f, 0.25f));
         } else {
             resetBadSoundsParams();
-            generateFormantParams(1.2f, 1.4f);
+            generateFormantParams(MIN_MODERATE_SHIFT, MAX_MODERATE_SHIFT);
             VoiceChangeSettings.maxFormantSpread.set(0.05f);
         }
     }
@@ -87,7 +91,9 @@ public class VoiceChangeSettingsGenerator {
             max = newMax;
         }
         VoiceChangeSettings.f0Shift.set(generateRandomFloat(min, max));
-        VoiceChangeSettings.formantRatio.set(generateRandomFloat(min, max));
+        VoiceChangeSettings.lowRatio.set(generateRandomFloat(min, max));
+        VoiceChangeSettings.midRatio.set(generateRandomFloat(min, max));
+        VoiceChangeSettings.highRatio.set(generateRandomFloat(min, max));
 
         VoiceChangeSettings.spectrumDistortionParams.set("");
     }
@@ -113,7 +119,9 @@ public class VoiceChangeSettingsGenerator {
         VoiceChangeSettings.spectrumDistortionParams.set(paramString.toString());
 
         VoiceChangeSettings.f0Shift.set(1.0f);
-        VoiceChangeSettings.formantRatio.set(1.0f);
+        VoiceChangeSettings.lowRatio.set(1.0f);
+        VoiceChangeSettings.midRatio.set(1.0f);
+        VoiceChangeSettings.highRatio.set(1.0f);
     }
 
     private String generateSingleFrequencyShift(int src, boolean increase) {

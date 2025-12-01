@@ -24,7 +24,9 @@ public class VoiceChangeSettings {
     public static final BooleanSetting aggressiveChangeLevel = new BooleanSetting("aggressiveChangeLevel", true);
     public static final StringSetting spectrumDistortionParams = new StringSetting("spectrumDistortionParams", "");
     public static final FloatSetting f0Shift = new FloatSetting("f0Shift", 1.0f);
-    public static final FloatSetting formantRatio = new FloatSetting("formantRatio", 1.0f);
+    public static final FloatSetting lowRatio = new FloatSetting("lowRatio", 1.0f);
+    public static final FloatSetting midRatio = new FloatSetting("midRatio", 1.0f);
+    public static final FloatSetting highRatio = new FloatSetting("highRatio", 1.0f);
     public static final FloatSetting maxFormantSpread = new FloatSetting("maxFormantSpread", 0.0f);
     public static final IntSetting badSThreshold = new IntSetting("badSThreshold", 4500);
     public static final IntSetting badSCutoff = new IntSetting("badSCutoff", 0);
@@ -53,7 +55,9 @@ public class VoiceChangeSettings {
     public static boolean areSettingsEmpty() {
         return Strings.isNullOrEmpty(spectrumDistortionParams.get().orElse(""))
                 && Math.abs(f0Shift.get().orElse(1.0f) - 1.0f) < 0.01f
-                && Math.abs(formantRatio.get().orElse(1.0f) - 1.0f) < 0.01f
+                && Math.abs(lowRatio.get().orElse(1.0f) - 1.0f) < 0.01f
+                && Math.abs(midRatio.get().orElse(1.0f) - 1.0f) < 0.01f
+                && Math.abs(highRatio.get().orElse(1.0f) - 1.0f) < 0.01f
                 && badSCutoff.get().orElse(0) == 0
                 && badShCutoff.get().orElse(0) == 0;
     }

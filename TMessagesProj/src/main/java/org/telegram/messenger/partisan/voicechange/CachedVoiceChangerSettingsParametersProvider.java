@@ -7,10 +7,13 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 public class CachedVoiceChangerSettingsParametersProvider implements ParametersProvider {
+    private final boolean aggressiveChangeLevel;
     private final double timeStretchFactor;
     private final String spectrumDistortionParams;
     private final double f0Shift;
-    private final double formantRatio;
+    private final double lowRatio;
+    private final double midRatio;
+    private final double highRatio;
     private final boolean formantShiftingHarvest;
     private final double maxFormantSpread;
     private final int badSThreshold;
@@ -22,9 +25,12 @@ public class CachedVoiceChangerSettingsParametersProvider implements ParametersP
 
     public CachedVoiceChangerSettingsParametersProvider() {
         timeStretchFactor = 1.0;
+        aggressiveChangeLevel = VoiceChangeSettings.aggressiveChangeLevel.get().orElse(false);
         spectrumDistortionParams = VoiceChangeSettings.spectrumDistortionParams.get().orElse("");
         f0Shift = VoiceChangeSettings.f0Shift.get().orElse(1.0f);
-        formantRatio = VoiceChangeSettings.formantRatio.get().orElse(1.0f);
+        lowRatio = VoiceChangeSettings.lowRatio.get().orElse(1.0f);
+        midRatio = VoiceChangeSettings.midRatio.get().orElse(1.0f);
+        highRatio = VoiceChangeSettings.highRatio.get().orElse(1.0f);
         formantShiftingHarvest = VoiceChangeSettings.formantShiftingHarvest.get().orElse(false);
         maxFormantSpread = VoiceChangeSettings.maxFormantSpread.get().orElse(0.0f);
         badSThreshold = VoiceChangeSettings.badSThreshold.get().orElse(4500);
@@ -83,8 +89,36 @@ public class CachedVoiceChangerSettingsParametersProvider implements ParametersP
     }
 
     @Override
-    public double getFormantRatio() {
-        return formantRatio;
+    public double getLowRatio() {
+        return lowRatio;
+    }
+
+    @Override
+    public double getMidRatio() {
+        return midRatio;
+    }
+
+    @Override
+    public double getHighRatio() {
+        return highRatio;
+    }
+
+    @Override
+    public FormantShiftLimits getFormantShiftLimits(double currentShift) {
+        FormantShiftLimits limits = new FormantShiftLimits();
+        if (aggressiveChangeLevel) {
+            limits.min = VoiceChangeSettingsGenerator.MIN_AGGRESSIVE_SHIFT;
+            limits.max = VoiceChangeSettingsGenerator.MAX_AGGRESSIVE_SHIFT;
+        } else {
+            limits.min = VoiceChangeSettingsGenerator.MIN_MODERATE_SHIFT;
+            limits.max = VoiceChangeSettingsGenerator.MAX_MODERATE_SHIFT;
+        }
+        if (currentShift < 1.0) {
+            double temp = 1.0 / limits.min;
+            limits.min = 1.0 / limits.max;
+            limits.max = temp;
+        }
+        return limits;
     }
 
     @Override

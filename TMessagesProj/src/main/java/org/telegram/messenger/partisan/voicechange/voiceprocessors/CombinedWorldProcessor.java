@@ -1,5 +1,6 @@
 package org.telegram.messenger.partisan.voicechange.voiceprocessors;
 
+import org.telegram.messenger.partisan.voicechange.FormantShiftLimits;
 import org.telegram.messenger.partisan.voicechange.ParametersProvider;
 import org.telegram.messenger.partisan.voicechange.WorldVocoder;
 
@@ -14,12 +15,24 @@ import be.tarsos.dsp.AudioEvent;
 import be.tarsos.dsp.io.TarsosDSPAudioFormat;
 
 public class CombinedWorldProcessor extends ChainedAudioProcessor {
+    private static class ShiftParameter {
+        public double from;
+        public double to;
 
-    private static final int bufferLengthMs = 350;
+        public ShiftParameter(double from, double to) {
+            this.from = from;
+            this.to = to;
+        }
+    }
+
+    private static final double MAX_SPREAD_SPEED = 0.2;
+    private static final int BUFFER_LENGTH_MS = 350;
     public final int bufferSize;
     public final int bufferOverlap;
-    private double currentF0Shift;
-    private double currentFormantRatio;
+    private final ShiftParameter currentF0Shift;
+    private final ShiftParameter currentLowRatio;
+    private final ShiftParameter currentMidRatio;
+    private final ShiftParameter currentHighRatio;
 
     private final ParametersProvider parametersProvider;
     private final int sampleRate;
@@ -37,24 +50,39 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
         this.parametersProvider = parametersProvider;
         this.sampleRate = sampleRate;
 
-        bufferSize = (int)(bufferLengthMs / 1000.0 * sampleRate) + 1;
+        bufferSize = (int)(BUFFER_LENGTH_MS / 1000.0 * sampleRate) + 1;
         bufferOverlap = 0;
 
         outputAccumulator = new float[bufferSize * 2];
         osamp = bufferSize / (bufferSize - bufferOverlap);
 
         currentF0Shift = generateFirstShift(parametersProvider.getF0Shift());
-        currentFormantRatio += generateFirstShift(parametersProvider.getFormantRatio());
+        currentLowRatio = generateFirstShift(parametersProvider.getLowRatio());
+        currentMidRatio = generateFirstShift(parametersProvider.getMidRatio());
+        currentHighRatio = generateFirstShift(parametersProvider.getHighRatio());
     }
 
-    private double generateFirstShift(double defaultValue) {
+    private ShiftParameter generateFirstShift(double defaultValue) {
+        FormantShiftLimits limits = getSpreadLimits(defaultValue);
+        if (limits == null) {
+            return new ShiftParameter(defaultValue, defaultValue);
+        }
+        double value = ThreadLocalRandom.current().nextDouble(limits.min, limits.max);
+        return new ShiftParameter(value, value);
+    }
+
+    private FormantShiftLimits getSpreadLimits(double defaultValue) {
         double maxFormantSpread = parametersProvider.getMaxFormantSpread();
         if (maxFormantSpread < 1E-6) {
-            return defaultValue;
+            return null;
         }
-        double minValue = defaultValue / (1.0 + maxFormantSpread);
-        double maxValue = defaultValue * (1.0 + maxFormantSpread);
-        return ThreadLocalRandom.current().nextDouble(minValue, maxValue);
+        FormantShiftLimits spreadLimits = new FormantShiftLimits();
+        spreadLimits.min = defaultValue / (1.0 + maxFormantSpread);
+        spreadLimits.max = defaultValue * (1.0 + maxFormantSpread);
+        FormantShiftLimits maxLimits = parametersProvider.getFormantShiftLimits(defaultValue);
+        spreadLimits.min = Math.max(spreadLimits.min, maxLimits.min);
+        spreadLimits.max = Math.min(spreadLimits.max, maxLimits.max);
+        return spreadLimits;
     }
 
     @Override
@@ -72,14 +100,12 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
     public boolean process(AudioEvent audioEvent) {
         AudioEvent audioEventCopy = cloneAudioEvent(audioEvent);
         audioEventQueue.add(audioEventCopy);
-        final double shiftFrom = currentF0Shift;
-        currentF0Shift = generateNewShift(parametersProvider.getF0Shift(), currentF0Shift);
-        final double shiftTo = currentF0Shift;
-        final double ratioFrom = currentFormantRatio;
-        currentFormantRatio = generateNewShift(parametersProvider.getFormantRatio(), currentFormantRatio);
-        final double ratioTo = currentFormantRatio;
+        ShiftParameter f0Shift = generateNewShift(parametersProvider.getF0Shift(), currentF0Shift);
+        ShiftParameter lowRatio = generateNewShift(parametersProvider.getLowRatio(), currentLowRatio);
+        ShiftParameter midRatio = generateNewShift(parametersProvider.getMidRatio(), currentMidRatio);
+        ShiftParameter highRatio = generateNewShift(parametersProvider.getHighRatio(), currentHighRatio);
         threadPoolExecutor.execute(() -> {
-            float[] shiftedAudioBuffer = changeVoice(audioEventCopy.getFloatBuffer(), shiftFrom, shiftTo, ratioFrom, ratioTo);
+            float[] shiftedAudioBuffer = changeVoice(audioEventCopy.getFloatBuffer(), f0Shift, lowRatio, midRatio, highRatio);
             finalizingQueue.execute(() -> shiftingFinished(audioEventCopy, shiftedAudioBuffer));
         });
         return true;
@@ -94,28 +120,36 @@ public class CombinedWorldProcessor extends ChainedAudioProcessor {
         return audioEventCopy;
     }
 
-    private double generateNewShift(double defaultValue, double oldValue) {
-        if (parametersProvider.getMaxFormantSpread() < 1E-6) {
-            return oldValue;
+    private ShiftParameter generateNewShift(double defaultValue, ShiftParameter shiftParameter) {
+        FormantShiftLimits limits = getSpreadLimits(defaultValue);
+        if (limits == null) {
+            return shiftParameter;
         }
+        double maxChange = (limits.max - limits.min) * MAX_SPREAD_SPEED;
         double newValue;
-        double minValue = defaultValue / (1.0 + parametersProvider.getMaxFormantSpread());
-        double maxValue = defaultValue * (1.0 + parametersProvider.getMaxFormantSpread());
         do {
-            double max_change = parametersProvider.getMaxFormantSpread() * 0.1;
-            double change = ThreadLocalRandom.current().nextDouble(-max_change, max_change);
-            newValue = oldValue + change;
-        } while(newValue < minValue || newValue > maxValue);
-        return newValue;
+            double change = ThreadLocalRandom.current().nextDouble(-maxChange, maxChange);
+            newValue = shiftParameter.to + change;
+        } while(newValue < limits.min || newValue > limits.max);
+        shiftParameter.from = shiftParameter.to;
+        return new ShiftParameter(shiftParameter.from, shiftParameter.to);
     }
 
-    private float[] changeVoice(float[] srcFloatBuffer, double shiftFrom, double shiftTo, double ratioFrom, double ratioTo) {
+    private float[] changeVoice(float[] srcFloatBuffer,
+                                ShiftParameter f0Shift,
+                                ShiftParameter lowRatio,
+                                ShiftParameter midRatio,
+                                ShiftParameter highRatio) {
         float[] audioBufferResult = new float[srcFloatBuffer.length];
         WorldVocoder.changeVoice(
-                shiftFrom,
-                shiftTo,
-                ratioFrom,
-                ratioTo,
+                f0Shift.from,
+                f0Shift.to,
+                lowRatio.from,
+                lowRatio.to,
+                midRatio.from,
+                midRatio.to,
+                highRatio.from,
+                highRatio.to,
                 sampleRate,
                 srcFloatBuffer,
                 srcFloatBuffer.length,

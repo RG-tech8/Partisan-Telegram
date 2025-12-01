@@ -139,43 +139,141 @@ void BreakSounds(double** spectrogram, int fft_size, double* f0, int fs, int f0_
     delete[] freq_axis;
 }
 
-static void ShiftFormants(double shift_from, double shift_to, double ratio_from, double ratio_to, int fs, int f0_length,
-                          int fft_size, double* f0, double** spectrogram) {
-    for (int i = 0; i < f0_length; ++i) {
-        double current_shift = shift_from + (shift_to - shift_from) * ((double)i / (double)f0_length);
-        f0[i] *= current_shift;
+struct FormantRatioParameters {
+    double ratio_from;
+    double ratio_to;
+
+    bool isDefault() {
+        return std::abs(ratio_from - 1.0) < 1E-6 && std::abs(ratio_to - 1.0) < 1E-6;
     }
+};
 
-    double* freq_axis1 = new double[fft_size];
-    double* freq_axis2 = new double[fft_size];
-    double* spectrum1 = new double[fft_size];
-    double* spectrum2 = new double[fft_size];
-    for (int i = 0; i < f0_length; ++i) {
-        for (int j = 0; j <= fft_size / 2; ++j)
-            spectrum1[j] = log(spectrogram[i][j]);
+struct FormantParameters {
+    double shift_from;
+    double shift_to;
+    FormantRatioParameters lowFormantRatio;
+    FormantRatioParameters midFormantRatio;
+    FormantRatioParameters highFormantRatio;
 
-        double current_ratio = ratio_from + (ratio_to - ratio_from) * ((double)i / (double)f0_length);
-        for (int j = 0; j <= fft_size / 2; ++j) {
-            freq_axis1[j] = current_ratio * j / fft_size * fs;
-            freq_axis2[j] = static_cast<double>(j) / fft_size * fs;
-        }
-
-        interp1(freq_axis1, spectrum1, fft_size / 2 + 1, freq_axis2, fft_size / 2 + 1, spectrum2);
-
-        for (int j = 0; j <= fft_size / 2; ++j) {
-            spectrogram[i][j] = exp(spectrum2[j]);
-        }
-        if (current_ratio >= 1.0) {
-            continue;
-        }
-        for (int j = static_cast<int>(fft_size / 2.0 * current_ratio); j <= fft_size / 2; ++j) {
-            spectrogram[i][j] = spectrogram[i][static_cast<int>(fft_size / 2.0 * current_ratio) - 1];
-        }
+    bool isDefault() {
+        return std::abs(shift_from - 1.0) < 1E-6 && std::abs(shift_from - 1.0) < 1E-6
+               && lowFormantRatio.isDefault() && midFormantRatio.isDefault() && highFormantRatio.isDefault();
     }
-    delete[] spectrum1;
-    delete[] spectrum2;
+};
+
+class FormantShifter {
+public:
+    FormantShifter(WorldParameters& worldParameters, FormantParameters& formantParameters);
+    ~FormantShifter();
+    void performShifting();
+
+private:
+    double** createSpectrogramMatrix();
+    void deleteSpectrogramMatrix(double** spectrogram);
+
+    void shiftF0();
+    void shiftFormants(FormantRatioParameters formantRatio, int i, int fromFrequencyIndex, int toFrequencyIndex);
+    void saveSpectrogram();
+
+    WorldParameters& worldParameters;
+    FormantParameters& formantParameters;
+
+    double* freq_axis1;
+    double* freq_axis2;
+    double* spectrum1;
+    double* spectrum2;
+    double* tempSpectrum;
+    double** resultSpectrogram;
+};
+
+FormantShifter::FormantShifter(WorldParameters& worldParameters, FormantParameters& formantParameters)
+        : worldParameters(worldParameters)
+        , formantParameters(formantParameters)
+{
+    freq_axis1 = new double[worldParameters.fft_size];
+    freq_axis2 = new double[worldParameters.fft_size];
+    spectrum1 = new double[worldParameters.fft_size];
+    spectrum2 = new double[worldParameters.fft_size];
+
+    tempSpectrum = new double[worldParameters.fft_size];
+    resultSpectrogram = createSpectrogramMatrix();
+}
+
+FormantShifter::~FormantShifter() {
     delete[] freq_axis1;
     delete[] freq_axis2;
+    delete[] spectrum1;
+    delete[] spectrum2;
+    delete[] tempSpectrum;
+    deleteSpectrogramMatrix(resultSpectrogram);
+}
+
+void FormantShifter::performShifting() {
+    shiftF0();
+    int midFrequencyMinIndex = (int)round(1000.0 * worldParameters.fft_size / worldParameters.fs);
+    int highFrequencyMinIndex = (int)round(4000.0 * worldParameters.fft_size / worldParameters.fs);
+    for (int i = 0; i < worldParameters.f0_length; ++i) {
+        for (int j = 0; j <= worldParameters.fft_size / 2; ++j) {
+            spectrum1[j] = log(worldParameters.spectrogram[i][j]);
+        }
+        shiftFormants(formantParameters.lowFormantRatio, i, 0.0, midFrequencyMinIndex);
+        shiftFormants(formantParameters.midFormantRatio, i, midFrequencyMinIndex, highFrequencyMinIndex);
+        shiftFormants(formantParameters.highFormantRatio, i, highFrequencyMinIndex, worldParameters.fft_size/2 + 1);
+    }
+    saveSpectrogram();
+}
+
+void FormantShifter::shiftF0() {
+    for (int i = 0; i < worldParameters.f0_length; ++i) {
+        double current_shift = formantParameters.shift_from + (formantParameters.shift_to - formantParameters.shift_from) * ((double)i / (double)worldParameters.f0_length);
+        worldParameters.f0[i] *= current_shift;
+    }
+}
+
+double** FormantShifter::createSpectrogramMatrix() {
+    double** spectrogram = new double* [worldParameters.f0_length];
+    for (int i = 0; i < worldParameters.f0_length; ++i) {
+        spectrogram[i] = new double[worldParameters.fft_size / 2 + 1];
+    }
+    return spectrogram;
+}
+
+void FormantShifter::deleteSpectrogramMatrix(double** spectrogram) {
+    for (int i = 0; i < worldParameters.f0_length; ++i) {
+        delete[] spectrogram[i];
+    }
+    delete[] spectrogram;
+}
+
+void FormantShifter::shiftFormants(FormantRatioParameters formantRatio, int frameIndex, int fromFrequencyIndex, int toFrequencyIndex) {
+    double currentRatio = formantRatio.ratio_from + (formantRatio.ratio_to - formantRatio.ratio_from) * ((double)frameIndex / (double)worldParameters.f0_length);
+    for (int j = 0; j <= worldParameters.fft_size / 2; ++j) {
+        freq_axis1[j] = currentRatio * j / worldParameters.fft_size * worldParameters.fs;
+        freq_axis2[j] = static_cast<double>(j) / worldParameters.fft_size * worldParameters.fs;
+    }
+
+    interp1(freq_axis1, spectrum1, worldParameters.fft_size / 2 + 1, freq_axis2, worldParameters.fft_size / 2 + 1, spectrum2);
+
+    for (int j = fromFrequencyIndex; j < toFrequencyIndex; ++j)
+        tempSpectrum[j] = exp(spectrum2[j]);
+
+    if (currentRatio < 1.0) {
+        for (int j = static_cast<int>(worldParameters.fft_size / 2.0 * currentRatio); j <= worldParameters.fft_size / 2; ++j) {
+            tempSpectrum[j] = worldParameters.spectrogram[frameIndex][static_cast<int>(worldParameters.fft_size / 2.0 * currentRatio) - 1];
+        }
+    }
+
+    for (int j = fromFrequencyIndex; j < toFrequencyIndex; ++j) {
+        resultSpectrogram[frameIndex][j] = tempSpectrum[j];
+    }
+}
+
+void FormantShifter::saveSpectrogram() {
+    for (int i = 0; i < worldParameters.f0_length; ++i) {
+        for (int j = 0; j < worldParameters.fft_size / 2; ++j) {
+            worldParameters.spectrogram[i][j] = resultSpectrogram[i][j];
+        }
+    }
 }
 
 static void WaveformSynthesis(WorldParameters *world_parameters, int fs,
@@ -226,9 +324,15 @@ static void ClipAudioData(double *y, int y_length) {
     }
 }
 
-static void ChangeVoice(double shift_from, double shift_to, double ratio_from, double ratio_to, int fs, const float* x_float, int x_length, float* y_float, int* y_length, int harvest,
-                        int bad_s_threshold, int bad_s_cutoff,
-                        int bad_sh_min_threshold, int bad_sh_max_threshold, int bad_sh_cutoff) {
+static void ChangeVoice(
+        double shift_from, double shift_to,
+        double low_ratio_from, double low_ratio_to,
+        double mid_ratio_from, double mid_ratio_to,
+        double high_ratio_from, double high_ratio_to,
+        int fs, const float* x_float, int x_length, float* y_float, int* y_length, int harvest,
+        int bad_s_threshold, int bad_s_cutoff,
+        int bad_sh_min_threshold, int bad_sh_max_threshold, int bad_sh_cutoff)
+{
     double* x = new double[x_length];
     FloatArrayToDoubleArray(x_float, x, x_length);
 
@@ -250,10 +354,15 @@ static void ChangeVoice(double shift_from, double shift_to, double ratio_from, d
                      bad_sh_min_threshold, bad_sh_max_threshold, bad_sh_cutoff);
     }
 
-    if (std::abs(shift_from - 1.0) > 1E-6 || std::abs(shift_to - 1.0) > 1E-6 || std::abs(ratio_from - 1.0) > 1E-6 || std::abs(ratio_to - 1.0) > 1E-6) {
-        ShiftFormants(shift_from, shift_to, ratio_from, ratio_to, fs, world_parameters.f0_length,
-                      world_parameters.fft_size, world_parameters.f0,
-                      world_parameters.spectrogram);
+    FormantParameters formantParameters{
+            shift_from,
+            shift_to,
+            {low_ratio_from, low_ratio_to},
+            {mid_ratio_from, mid_ratio_to},
+            {high_ratio_from, high_ratio_to}
+    };
+    if (!formantParameters.isDefault()) {
+        FormantShifter(world_parameters, formantParameters).performShifting();
     }
 
     *y_length = CalculateYLength(&world_parameters);
@@ -271,13 +380,22 @@ static void ChangeVoice(double shift_from, double shift_to, double ratio_from, d
     delete[] y;
 }
 
-extern "C" JNIEXPORT jint Java_org_telegram_messenger_partisan_voicechange_WorldVocoder_changeVoice(JNIEnv *env, jclass clazz, jdouble shift_from, jdouble shift_to, jdouble ratio_from, jdouble ratio_to, jint fs, jfloatArray x, jint x_length, jfloatArray y, jint harvest,
-                                                                                                    jint bad_s_threshold, jint bad_s_cutoff,
-                                                                                                    jint bad_sh_min_threshold, jint bad_sh_max_threshold, jint bad_sh_cutoff) {
+extern "C" JNIEXPORT jint Java_org_telegram_messenger_partisan_voicechange_WorldVocoder_changeVoice(JNIEnv *env, jclass clazz,
+                                                    jdouble shift_from, jdouble shift_to,
+                                                    jdouble low_ratio_from, jdouble low_ratio_to,
+                                                    jdouble mid_ratio_from, jdouble mid_ratio_to,
+                                                    jdouble high_ratio_from, jdouble high_ratio_to,
+                                                    jint fs, jfloatArray x, jint x_length, jfloatArray y, jint harvest,
+                                                    jint bad_s_threshold, jint bad_s_cutoff,
+                                                    jint bad_sh_min_threshold, jint bad_sh_max_threshold, jint bad_sh_cutoff) {
     jfloat* xTmp = env->GetFloatArrayElements(x, nullptr);
     jfloat* yTmp = env->GetFloatArrayElements(y, nullptr);
     int yLength;
-    ChangeVoice(shift_from, shift_to, ratio_from, ratio_to, fs, xTmp, x_length, yTmp, &yLength, harvest,
+    ChangeVoice(shift_from, shift_to,
+                low_ratio_from, low_ratio_to,
+                mid_ratio_from, mid_ratio_to,
+                high_ratio_from, high_ratio_to,
+                fs, xTmp, x_length, yTmp, &yLength, harvest,
                 bad_s_threshold, bad_s_cutoff,
                 bad_sh_min_threshold, bad_sh_max_threshold, bad_sh_cutoff);
     return yLength;
