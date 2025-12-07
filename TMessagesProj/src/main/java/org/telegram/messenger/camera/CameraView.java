@@ -2226,6 +2226,15 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
         }
 
         public void stopRecording() {
+            org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger voiceChanger = null;
+            if (CameraView.this.videoEncoder != null) {
+                voiceChanger = CameraView.this.videoEncoder.voiceChanger;
+            }
+            if (voiceChanger != null && !voiceChanger.isWritingFinished()) {
+                voiceChanger.setFinishedCallback(this::stopRecording);
+                voiceChanger.notifyWritingFinished();
+                return;
+            }
             Handler handler = getHandler();
             if (handler != null) {
                 sendMessage(handler.obtainMessage(DO_STOP_RECORDING), 0);
@@ -2421,6 +2430,7 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
         private Integer lastCameraId = 0;
 
         private AudioRecord audioRecorder;
+        private org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger voiceChanger;
         private FloatBuffer textureBuffer;
 
         private ArrayBlockingQueue<InstantCameraView.AudioBufferInfo> buffers = new ArrayBlockingQueue<>(10);
@@ -2462,6 +2472,23 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
                         ByteBuffer byteBuffer = buffer.buffer[a];
                         byteBuffer.rewind();
                         readResult = audioRecorder.read(byteBuffer, 2048);
+                        org.telegram.messenger.partisan.voicechange.RealTimeVoiceChanger voiceChanger = CameraView.VideoRecorder.this.voiceChanger;
+                        if (voiceChanger != null) {
+                            if (readResult > 0) {
+                                voiceChanger.write(org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.getBytesFromByteBuffer(byteBuffer, readResult));
+                            }
+                            byteBuffer.clear();
+                            byte[] changedVoice = voiceChanger.readBytesExactCount(readResult);
+                            if (changedVoice == null || changedVoice.length == 0) {
+                                byteBuffer.put(new byte[readResult]);
+                            } else {
+                                byteBuffer.put(changedVoice, 0, readResult);
+                            }
+                            byteBuffer.rewind();
+                            if (voiceChanger.isVoiceChangingFinished()) {
+                                readResult = 0;
+                            }
+                        }
                         if (readResult > 0 && a % 2 == 0) {
                             byteBuffer.limit(readResult);
                             double s = 0;
@@ -2979,6 +3006,11 @@ public class CameraView extends FrameLayout implements TextureView.SurfaceTextur
                 }
                 audioRecorder = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, audioSampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
                 audioRecorder.startRecording();
+                voiceChanger = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.createRealTimeVoiceChangerIfNeeded(
+                        UserConfig.selectedAccount,
+                        org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE,
+                        audioRecorder.getSampleRate()
+                );
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("CameraView " + "initied audio record with channels " + audioRecorder.getChannelCount() + " sample rate = " + audioRecorder.getSampleRate() + " bufferSize = " + bufferSize);
                 }

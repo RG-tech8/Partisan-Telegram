@@ -1,10 +1,13 @@
-package org.telegram.messenger.partisan.voicechange;
+package org.telegram.messenger.partisan.voicechange.voiceprocessors;
+
+import org.telegram.messenger.partisan.voicechange.Constants;
+import org.telegram.messenger.partisan.voicechange.ParametersProvider;
 
 import be.tarsos.dsp.AudioEvent;
 import be.tarsos.dsp.resample.Resampler;
 
-class TimeStretcher extends ChainedAudioProcessor {
-    private final Resampler resampler = new Resampler(false,0.1,4.0);
+public class TimeStretcher extends ChainedAudioProcessor {
+    private final Resampler resampler = new Resampler(false, 0.1, 4.0);
     private final ParametersProvider parametersProvider;
 
     public TimeStretcher(ParametersProvider parametersProvider) {
@@ -12,20 +15,15 @@ class TimeStretcher extends ChainedAudioProcessor {
     }
 
     @Override
-    public void processingFinished() {
-
-    }
-
-    @Override
     public boolean processInternal(AudioEvent audioEvent) {
         float pitchFactor = (float) (1.0 / parametersProvider.getTimeStretchFactor());
         float[] src = audioEvent.getFloatBuffer();
-        float[] out = new float[(int) ((Constants.bufferSize-Constants.bufferOverlap) * pitchFactor)];
+        float[] out = new float[(int) ((Constants.defaultBufferSize -Constants.defaultBufferOverlap) * pitchFactor)];
         resampler.process(
                 pitchFactor,
                 src,
-                Constants.bufferOverlap,
-                Constants.bufferSize-Constants.bufferOverlap,
+                Constants.defaultBufferOverlap,
+                Constants.defaultBufferSize -Constants.defaultBufferOverlap,
                 false,
                 out,
                 0,

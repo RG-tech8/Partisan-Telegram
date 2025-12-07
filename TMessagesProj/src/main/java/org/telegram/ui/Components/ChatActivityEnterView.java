@@ -146,6 +146,9 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.camera.CameraController;
 import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 import org.telegram.messenger.fakepasscode.RemoveAfterReadingMessages;
+import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
+import org.telegram.messenger.partisan.voicechange.VoiceChanger;
+import org.telegram.messenger.partisan.voicechange.VoiceChangerUtils;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLRPC;
@@ -12529,19 +12532,23 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         TextPaint grayPaint;
         TextPaint bluePaint;
+        TextPaint voiceChangedPaint;
 
         Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
         String slideToCancelString;
         String cancelString;
+        String voiceChangedString;
 
         float slideToCancelWidth;
         float cancelWidth;
+        float voiceChangedWidth;
         float cancelToProgress;
         float slideProgress;
 
         float slideToAlpha;
         float cancelAlpha;
+        float voiceChangedAlpha;
 
         float xOffset = 0;
         boolean moveForward;
@@ -12553,6 +12560,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         StaticLayout slideToLayout;
         StaticLayout cancelLayout;
+        StaticLayout voiceChangedLayout;
 
         private boolean pressed;
         public Rect cancelRect = new Rect();
@@ -12621,6 +12629,9 @@ public class ChatActivityEnterView extends FrameLayout implements
             bluePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             bluePaint.setTextSize(dp(15));
 
+            voiceChangedPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            voiceChangedPaint.setTextSize(dp(11));
+
             bluePaint.setTypeface(AndroidUtilities.bold());
 
             arrowPaint.setColor(getThemedColor(Theme.key_glass_defaultIcon));
@@ -12633,6 +12644,8 @@ public class ChatActivityEnterView extends FrameLayout implements
 
             cancelString = getString("Cancel", R.string.Cancel).toUpperCase();
 
+            voiceChangedString = getString(R.string.VoiceChanged);
+
             cancelCharOffset = slideToCancelString.indexOf(cancelString);
 
             updateColors();
@@ -12641,8 +12654,11 @@ public class ChatActivityEnterView extends FrameLayout implements
         public void updateColors() {
             grayPaint.setColor(getThemedColor(Theme.key_chat_recordTime));
             bluePaint.setColor(getThemedColor(Theme.key_chat_recordVoiceCancel));
+            voiceChangedPaint.setColor(getThemedColor(Theme.key_chat_recordTime));
+            voiceChangedPaint.setAlpha((int)(voiceChangedPaint.getAlpha() * 0.8));
             slideToAlpha = grayPaint.getAlpha();
             cancelAlpha = bluePaint.getAlpha();
+            voiceChangedAlpha = voiceChangedPaint.getAlpha();
             selectableBackground = Theme.createSimpleSelectorCircleDrawable(dp(60), 0, ColorUtils.setAlphaComponent(getThemedColor(Theme.key_chat_recordVoiceCancel), 26));
             selectableBackground.setCallback(this);
         }
@@ -12675,6 +12691,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 lastSize = currentSize;
                 slideToCancelWidth = grayPaint.measureText(slideToCancelString);
                 cancelWidth = bluePaint.measureText(cancelString);
+                voiceChangedWidth = voiceChangedPaint.measureText(voiceChangedString);
                 lastUpdateTime = System.currentTimeMillis();
 
                 int heightHalf = getMeasuredHeight() >> 1;
@@ -12691,6 +12708,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
                 slideToLayout = new StaticLayout(slideToCancelString, grayPaint, (int) slideToCancelWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
                 cancelLayout = new StaticLayout(cancelString, bluePaint, (int) cancelWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
+                voiceChangedLayout = new StaticLayout(voiceChangedString, voiceChangedPaint, (int) voiceChangedWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
             }
         }
 
@@ -12739,6 +12757,8 @@ public class ChatActivityEnterView extends FrameLayout implements
             float offsetY = enableTransition ? 0 : cancelToProgress * dp(12);
 
             if (cancelToProgress != 1) {
+                voiceChangedPaint.setAlpha((int) (voiceChangedAlpha * (1f - cancelToProgress) * slideProgress));
+
                 int slideDelta = (int) (-getMeasuredWidth() / 4 * (1f - slideProgress) + recordCircle.getTranslationX() * 0.3f);
                 canvas.save();
                 canvas.clipRect((recordTimerView == null ? 0 : recordTimerView.getLeftProperty()) + dp(4), 0, getMeasuredWidth(), getMeasuredHeight());
@@ -12751,6 +12771,14 @@ public class ChatActivityEnterView extends FrameLayout implements
                 canvas.translate((int) x + slideDelta, (getMeasuredHeight() - slideToLayout.getHeight()) / 2f + offsetY);
                 slideToLayout.draw(canvas);
                 canvas.restore();
+
+                if (VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, VoiceChangeType.VOICE_MESSAGE) || VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, VoiceChangeType.VIDEO_MESSAGE)) {
+                    canvas.save();
+                    canvas.translate((int) x + slideDelta + (slideToCancelWidth - voiceChangedWidth) / 2, (getMeasuredHeight() - slideToLayout.getHeight()) / 2f + offsetY + slideToLayout.getHeight());
+                    voiceChangedLayout.draw(canvas);
+                    canvas.restore();
+                }
+
                 canvas.restore();
             }
 
@@ -12767,6 +12795,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             cancelRect.set((int) xi, (int) yi, (int) (xi + cancelLayout.getWidth()), (int) (yi + cancelLayout.getHeight()));
             cancelRect.inset(-dp(16), -dp(16));
             if (cancelToProgress > 0) {
+                voiceChangedPaint.setAlpha((int) (cancelAlpha * cancelToProgress));
                 selectableBackground.setBounds(
                         getMeasuredWidth() / 2 - w, getMeasuredHeight() / 2 - w,
                         getMeasuredWidth() / 2 + w, getMeasuredHeight() / 2 + w
@@ -12777,6 +12806,13 @@ public class ChatActivityEnterView extends FrameLayout implements
                 canvas.translate(xi, yi);
                 cancelLayout.draw(canvas);
                 canvas.restore();
+
+                if (VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, VoiceChangeType.VOICE_MESSAGE) || VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, VoiceChangeType.VIDEO_MESSAGE)) {
+                    canvas.save();
+                    canvas.translate(xi + (cancelWidth - voiceChangedWidth) / 2, yi + cancelLayout.getHeight());
+                    voiceChangedLayout.draw(canvas);
+                    canvas.restore();
+                }
             } else {
                 setPressed(false);
             }

@@ -113,7 +113,6 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
-import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
@@ -224,7 +223,7 @@ import java.util.stream.Collectors;
 import me.vkryl.android.animator.BoolAnimator;
 import me.vkryl.android.animator.FactorAnimator;
 
-public class GroupCallActivity extends BottomSheet implements NotificationCenter.NotificationCenterDelegate, VoIPService.StateListener, FactorAnimator.Target {
+public class GroupCallActivity extends BottomSheet implements NotificationCenter.NotificationCenterDelegate, VoIPService.StateListener, FactorAnimator.Target, GroupCallMessagesController.CallMessageListener {
 
     public final static int TABLET_LIST_SIZE = 320;
     public static final long TRANSITION_DURATION = 350;
@@ -302,6 +301,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
     private int speakerIcon;
     private final ImageView speakerImageView;
 
+    private final TextView voiceChangedLabel;
     private final GroupCallMessagesListView groupCallMessagesListView;
     private final int maxGroupCallMessageLength;
 
@@ -1169,6 +1169,9 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         }
         delayedGroupCallUpdated = true;
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.groupCallVisibilityChanged);
+        if (call != null && call.getInputGroupCall(false) != null) {
+            GroupCallMessagesController.getInstance(currentAccount).unsubscribeFromCallMessages(call.getInputGroupCall(false).id, this);
+        }
         accountInstance.getNotificationCenter().removeObserver(this, NotificationCenter.needShowAlert);
         accountInstance.getNotificationCenter().removeObserver(this, NotificationCenter.groupCallUpdated);
         accountInstance.getNotificationCenter().removeObserver(this, NotificationCenter.chatInfoDidLoad);
@@ -1181,6 +1184,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         accountInstance.getNotificationCenter().removeObserver(this, NotificationCenter.groupCallSpeakingUsersUpdated);
         accountInstance.getNotificationCenter().removeObserver(this, NotificationCenter.conferenceEmojiUpdated);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.webRtcMicAmplitudeEvent);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.voiceChangingStateChanged);
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.didEndCall);
         super.dismiss();
     }
@@ -1320,6 +1324,8 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         } else if (id == NotificationCenter.webRtcMicAmplitudeEvent) {
             float amplitude = (float) args[0];
             setMicAmplitude(amplitude);
+        } else if (id == NotificationCenter.voiceChangingStateChanged) {
+            voiceChangedLabel.setVisibility(org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(accountInstance.getCurrentAccount(), org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL) ? View.VISIBLE : View.GONE);
         } else if (id == NotificationCenter.needShowAlert) {
             int num = (Integer) args[0];
             if (num == 6) {
@@ -2451,6 +2457,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         accountInstance.getNotificationCenter().addObserver(this, NotificationCenter.groupCallSpeakingUsersUpdated);
         accountInstance.getNotificationCenter().addObserver(this, NotificationCenter.conferenceEmojiUpdated);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.webRtcMicAmplitudeEvent);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.voiceChangingStateChanged);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.didEndCall);
 
         shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
@@ -5334,6 +5341,19 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         limitTextView.setAnimationProperties(.4f, 0, 320, CubicBezierInterpolator.EASE_OUT_QUINT);
         limitTextView.setTypeface(AndroidUtilities.bold());
 
+        voiceChangedLabel = new TextView(context);
+        voiceChangedLabel.setGravity(Gravity.CENTER_HORIZONTAL);
+        voiceChangedLabel.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
+        voiceChangedLabel.setTextColor(Color.WHITE);
+        containerView.addView(voiceChangedLabel, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 6, 0, 0));
+        voiceChangedLabel.setText(org.telegram.messenger.LocaleController.getString(org.telegram.messenger.R.string.VoiceChanged));
+        if (!org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(accountInstance.getCurrentAccount(), org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+            voiceChangedLabel.setVisibility(View.GONE);
+        }
+        if (call != null && call.getInputGroupCall(false) != null) {
+            GroupCallMessagesController.getInstance(currentAccount).subscribeToCallMessages(call.getInputGroupCall(false).id, this);
+        }
+
         containerView.addView(buttonsContainer);
         callMessageEnterView = new EditTextEmoji(context, sizeNotifierFrameLayout, LaunchActivity.getLastFragment(), EditTextEmoji.STYLE_CALL, true, resourcesProvider) {
             @Override
@@ -5938,6 +5958,31 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
     }
 
 
+
+    @Override
+    public void onNewGroupCallMessage(long callId, GroupCallMessage message) {
+        if (voiceChangedLabel.getVisibility() != View.VISIBLE || groupCallMessagesListView.getAdapter() == null) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            if (groupCallMessagesListView.getAdapter().getItemCount() > 0) {
+                voiceChangedLabel.setVisibility(View.GONE);
+            }
+        });
+    }
+
+    @Override
+    public void onPopGroupCallMessage() {
+        if (voiceChangedLabel.getVisibility() != View.GONE || groupCallMessagesListView.getAdapter() == null
+                || !org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(accountInstance.getCurrentAccount(), org.telegram.messenger.partisan.voicechange.VoiceChangeType.CALL)) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            if (groupCallMessagesListView.getAdapter().getItemCount() == 0) {
+                voiceChangedLabel.setVisibility(View.VISIBLE);
+            }
+        });
+    }
 
     @NonNull
     private WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
@@ -10687,7 +10732,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         final float heightOfInputView = animatorMessageInputHeight.getFactor();
         final float heightOfKeyboard = windowInsetsStateHolder.getAnimatedMaxBottomInset() - containerView.getPaddingBottom();
         final float reactionsLayoutHeight = dp(68) * animatorMessageIsEmpty.getFloatValue();
-        
+
         final float imeOffset = -(heightOfKeyboard + heightOfInputView + reactionsLayoutHeight + dp(10));
         final float defaultOffset;
 
@@ -10703,6 +10748,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         float visibleHeight = containerView.getMeasuredHeight() - scrollOffsetY + translationY - backgroundPaddingTop;
         visibleHeight = Math.max(visibleHeight / 3 * 2, visibleHeight - dp(250));
 
+        voiceChangedLabel.setTranslationY(translationY);
         groupCallMessagesListView.setTranslationY(translationY);
         groupCallMessagesListView.setVisibleHeight((int) (visibleHeight));
     }

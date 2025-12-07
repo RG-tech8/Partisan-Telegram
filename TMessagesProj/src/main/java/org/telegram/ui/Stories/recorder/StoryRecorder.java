@@ -1907,6 +1907,7 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
     private ToggleButton2 collageRemoveButton;
     private CollageLayoutButton.CollageLayoutListView collageListView;
     private VideoTimerView videoTimerView;
+    private View voiceChangedLabel;
     private boolean wasGalleryOpen;
     private boolean galleryClosing;
     private GalleryListView galleryListView;
@@ -2935,6 +2936,46 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
         showVideoTimer(false, false);
         actionBarContainer.addView(videoTimerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 45, Gravity.TOP | Gravity.FILL_HORIZONTAL, 56, 0, 56, 0));
         flashViews.add(videoTimerView);
+
+        voiceChangedLabel = new View(context) {
+            private TextPaint textPaint;
+            private Paint backgroundPaint;
+
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(22), MeasureSpec.EXACTLY));
+            }
+
+            @Override
+            public void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+
+                if (textPaint == null) {
+                    textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+                    textPaint.setTypeface(AndroidUtilities.bold());
+                    textPaint.setTextSize(AndroidUtilities.dp(13));
+                    textPaint.setColor(Color.WHITE);
+                }
+                if (backgroundPaint == null) {
+                    backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                    backgroundPaint.setColor(0x3f000000);
+                }
+
+                float w = textPaint.measureText(LocaleController.getString(R.string.VoiceChanged));
+
+                AndroidUtilities.rectTmp.set(
+                        (getWidth() - w) / 2 - AndroidUtilities.dp(8),
+                        0,
+                        (getWidth() + w) / 2 + AndroidUtilities.dp(8),
+                        AndroidUtilities.dp(22)
+                );
+                canvas.drawRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.dp(18), AndroidUtilities.dp(18), backgroundPaint);
+
+                canvas.drawText(LocaleController.getString(R.string.VoiceChanged), (int) (AndroidUtilities.rectTmp.left) + AndroidUtilities.dp(8), (int) AndroidUtilities.rectTmp.bottom - AndroidUtilities.dp(8), textPaint);
+            }
+        };
+        voiceChangedLabel.setAlpha(0);
+        actionBarContainer.addView(voiceChangedLabel, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 45, 0, 0));
 
         if (Build.VERSION.SDK_INT >= 21) {
             MediaController.loadGalleryPhotosAlbums(0);
@@ -7393,6 +7434,9 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
             if (recordControl != null && !showSavedDraftHint) {
                 recordControl.updateGalleryImage();
             }
+        } else if (id == NotificationCenter.voiceChangingStateChanged) {
+            boolean show = org.telegram.messenger.partisan.voicechange.VoiceChangerUtils.needShowVoiceChangeNotification(currentAccount, org.telegram.messenger.partisan.voicechange.VoiceChangeType.VIDEO_MESSAGE);
+            voiceChangedLabel.animate().alpha(show ? 1 : 0).setDuration(350).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
         } else if (id == NotificationCenter.storiesLimitUpdate) {
             if (currentPage == PAGE_PREVIEW) {
                 previewButtons.setShareEnabled(!videoError && !captionEdit.isCaptionOverLimit() && (!MessagesController.getInstance(currentAccount).getStoriesController().hasStoryLimit(getCount()) || (outputEntry != null && (outputEntry.isEdit || outputEntry.botId != 0))));
@@ -7417,12 +7461,14 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
 
     public void addNotificationObservers() {
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.albumsDidLoad);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.voiceChangingStateChanged);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.storiesDraftsUpdated);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.storiesLimitUpdate);
     }
 
     public void removeNotificationObservers() {
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.albumsDidLoad);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.voiceChangingStateChanged);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.storiesDraftsUpdated);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.storiesLimitUpdate);
     }

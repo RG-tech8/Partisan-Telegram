@@ -1,4 +1,4 @@
-package org.telegram.messenger.partisan.voicechange;
+package org.telegram.messenger.partisan.voicechange.voiceprocessors;
 
 import be.tarsos.dsp.AudioEvent;
 import be.tarsos.dsp.AudioProcessor;
@@ -22,4 +22,14 @@ public abstract class ChainedAudioProcessor implements AudioProcessor {
     protected boolean processInternal(AudioEvent audioEvent) {
         return true;
     }
+
+    @Override
+    public void processingFinished() {
+        processingFinishedInternal();
+        if (nextAudioProcessor != null) {
+            nextAudioProcessor.processingFinished();
+        }
+    }
+
+    protected void processingFinishedInternal() {}
 }

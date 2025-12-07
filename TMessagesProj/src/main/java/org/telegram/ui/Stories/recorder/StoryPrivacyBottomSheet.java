@@ -4668,7 +4668,7 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
 
             this.isLive = isLive;
             this.currentAccount = currentAccount;
-            this.peers = MessagesController.getInstance(currentAccount).getStoriesController().sendAs;
+            this.peers = FakePasscodeUtils.filterInputPeers(MessagesController.getInstance(currentAccount).getStoriesController().sendAs, currentAccount);
             this.selectedPeer = selected;
             this.onPeerSelected = onPeerSelected;
 
