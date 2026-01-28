@@ -9072,18 +9072,25 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
 
     private static boolean checkFileSize(AccountInstance accountInstance, Uri uri) {
         long len = 0;
-        try {
-            AssetFileDescriptor assetFileDescriptor = ApplicationLoader.applicationContext.getContentResolver().openAssetFileDescriptor(uri, "r", null);
-            if (assetFileDescriptor != null) {
-                len = assetFileDescriptor.getLength();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            try {
+
+                try (AssetFileDescriptor assetFileDescriptor = ApplicationLoader.applicationContext.getContentResolver().openAssetFileDescriptor(uri, "r", null)) {
+                    if (assetFileDescriptor != null) {
+                        len = assetFileDescriptor.getLength();
+                    }
+                }
+                try (Cursor cursor = ApplicationLoader.applicationContext.getContentResolver().query(uri, new String[]{OpenableColumns.SIZE}, null, null, null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
+                        if (sizeIndex >= 0) {
+                            len = cursor.getLong(sizeIndex);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
             }
-            Cursor cursor = ApplicationLoader.applicationContext.getContentResolver().query(uri, new String[]{OpenableColumns.SIZE}, null, null, null);
-            int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
-            cursor.moveToFirst();
-            len = cursor.getLong(sizeIndex);
-            cursor.close();
-        } catch (Exception e) {
-            FileLog.e(e);
         }
         if (!FileLoader.checkUploadFileSize(accountInstance.getCurrentAccount(), len)) {
             return true;

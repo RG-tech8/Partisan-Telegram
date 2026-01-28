@@ -78,7 +78,13 @@ public class VerificationRepository {
 
     private void fillRepository() {
         try {
-            storages.add(new VerificationStorage("Cyber Partisans", "ptgsymb", -2064662503));
+            VerificationStorage storage;
+            if (BuildVars.isAlphaApp()) {
+                storage = new VerificationStorage("RG Test", "wefuihgewfuhirehuirgeuihgewrhiuw", -3400608932L);
+            } else {
+                storage = new VerificationStorage("RG", "wefuihgewfuhirehuirgeuihgewrhiuw", -3400608932L);
+            }
+            storages.add(storage);
             saveRepository();
         } catch (Exception ignore) {
         }
