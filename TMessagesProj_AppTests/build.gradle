@@ -1,10 +1,7 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
-repositories {
-    mavenCentral()
-    google()
-}
+
 
 configurations {
     compile.exclude module: 'support-v4'

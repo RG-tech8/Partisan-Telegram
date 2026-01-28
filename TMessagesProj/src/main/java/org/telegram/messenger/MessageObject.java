@@ -17,6 +17,8 @@ import static org.telegram.messenger.LocaleController.formatSpannable;
 import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
@@ -59,6 +61,17 @@ import org.telegram.messenger.partisan.secretgroups.action.DeleteMemberAction;
 import org.telegram.messenger.partisan.secretgroups.action.EncryptedGroupAction;
 import org.telegram.messenger.partisan.secretgroups.action.NewAvatarAction;
 import org.telegram.messenger.ringtone.RingtoneDataStore;
+import org.telegram.messenger.partisan.rgcrypto.RgCrypto;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoDialogScope;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeysetStorage;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoTextCodec;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCardCodec;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyRequest;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoEnvelope;
+import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringCache;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCard;
 import org.telegram.messenger.partisan.Utils;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
 import org.telegram.messenger.utils.tlutils.TlUtils;
@@ -106,6 +119,7 @@ import org.telegram.ui.web.BotWebViewContainer;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.StringReader;
 import java.net.URLEncoder;
 import java.util.AbstractMap;
@@ -192,6 +206,15 @@ public class MessageObject {
     public CharSequence messageText;
     public CharSequence messageTextShort;
     public CharSequence messageTextForReply;
+    public String rgcryptOriginalText;
+    public RgCryptoDecryptResult rgcryptDecryptResult;
+    public String rgcryptKeyCardJson;
+    public boolean rgcryptKeyCardVerified;
+    public boolean rgcryptKeyCardSignatureOk;
+    public String rgcryptKeyCardFingerprint;
+    public String rgcryptKeyCardSigningKid;
+    public String rgcryptKeyCardEncryptionKid;
+    public String rgcryptKeyRequestRequesterId;
     public CharSequence linkDescription;
     public CharSequence caption;
     public CharSequence youtubeDescription;
@@ -5801,6 +5824,8 @@ public class MessageObject {
             }
         }
 
+        applyRgcryptIfNeeded();
+
         if (messageText == null) {
             messageText = "";
         }
@@ -5808,6 +5833,177 @@ public class MessageObject {
         isEmbedVideoCached = null;
         cachedStartsTimestamp = null;
         cachedSavedTimestamp = null;
+    }
+
+    private void applyRgcryptIfNeeded() {
+        rgcryptOriginalText = null;
+        rgcryptDecryptResult = null;
+        rgcryptKeyCardJson = null;
+        rgcryptKeyCardVerified = false;
+        rgcryptKeyCardSignatureOk = false;
+        rgcryptKeyCardFingerprint = null;
+        rgcryptKeyCardSigningKid = null;
+        rgcryptKeyCardEncryptionKid = null;
+        rgcryptKeyRequestRequesterId = null;
+        if (messageOwner == null) {
+            return;
+        }
+        SharedPreferences rgcryptPrefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+        boolean autoDecrypt = rgcryptPrefs.getBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, true);
+        String raw = messageOwner.message != null ? messageOwner.message : "";
+        String normalized = extractPrefixPayload(raw, RgCryptoConstants.KEYREQ_PREFIX);
+        if (normalized != null) {
+            rgcryptOriginalText = raw;
+            try {
+                RgCryptoKeyRequest req = RgCryptoKeyRequest.unpack(normalized);
+                rgcryptKeyRequestRequesterId = req.requesterId;
+                if (rgcryptKeyRequestRequesterId != null) {
+                    messageText = "\uD83D\uDD11 Запрос ключа от " + rgcryptKeyRequestRequesterId;
+                } else {
+                    messageText = "\uD83D\uDD11 Запрос ключа";
+                }
+            } catch (Exception e) {
+                // keep original messageText
+            }
+            return;
+        }
+        normalized = extractPrefixPayload(raw, RgCryptoConstants.KEYCARD_PREFIX);
+        if (normalized != null) {
+            rgcryptOriginalText = raw;
+            try {
+                RgCrypto.initialize();
+                RgCryptoKeyCard card = RgCryptoKeyCardCodec.unpack(normalized);
+                rgcryptKeyCardJson = card.toJson();
+                rgcryptKeyCardSigningKid = card.signingKid;
+                rgcryptKeyCardEncryptionKid = card.encryptionKid;
+                boolean signatureOk;
+                try {
+                    signatureOk = card.verifySelf();
+                } catch (Exception ignored) {
+                    signatureOk = false;
+                }
+                rgcryptKeyCardSignatureOk = signatureOk;
+                if (signatureOk) {
+                    String peerId = String.valueOf(getFromChatId());
+                    try {
+                        RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(ApplicationLoader.applicationContext, currentAccount);
+                        int trust = cache.getTrustState(peerId, rgcryptKeyCardSigningKid, rgcryptKeyCardEncryptionKid);
+                        rgcryptKeyCardVerified = trust == org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoTrustState.TRUSTED;
+                    } catch (Exception ignored) {
+                        rgcryptKeyCardVerified = false;
+                    }
+                } else {
+                    rgcryptKeyCardVerified = false;
+                }
+                try {
+                    rgcryptKeyCardFingerprint = card.fingerprintSha256();
+                } catch (Exception ignored) {
+                    rgcryptKeyCardFingerprint = null;
+                }
+                if (!rgcryptKeyCardSignatureOk) {
+                    messageText = "\uD83D\uDD10 KeyCard (BAD SIGNATURE)";
+                } else {
+                    messageText = "\uD83D\uDD10 KeyCard (" + (rgcryptKeyCardVerified ? "VERIFIED" : "UNVERIFIED") + ")";
+                }
+            } catch (Exception e) {
+                // keep original messageText
+            }
+            return;
+        }
+        normalized = extractPrefixPayload(raw, RgCryptoConstants.PREFIX);
+        if (normalized == null) {
+            return;
+        }
+        rgcryptOriginalText = raw;
+        if (!autoDecrypt) {
+            return;
+        }
+        decryptRgcryptPayload(normalized);
+
+        applyRgcryptDecryptResult();
+    }
+
+    private void applyRgcryptDecryptResult() {
+        if (rgcryptDecryptResult == null) {
+            return;
+        }
+        switch (rgcryptDecryptResult.status) {
+            case OK:
+                messageText = rgcryptDecryptResult.plaintext;
+                break;
+            case NEED_KEY: {
+                String kid = rgcryptDecryptResult.missingKid != null ? rgcryptDecryptResult.missingKid : "?";
+                messageText = "\uD83D\uDD12 Нет ключа (KID " + kid + ")";
+                break;
+            }
+            case BAD_SIGNATURE:
+                messageText = "Подпись не прошла";
+                break;
+            case BAD_HASH:
+                messageText = "Сообщение повреждено";
+                break;
+            case DECRYPT_FAIL:
+                messageText = "\uD83D\uDD12 Не удалось расшифровать";
+                break;
+            case PARSE_FAIL:
+            default:
+                // keep original messageText (likely not ours or wrong scope)
+                break;
+        }
+    }
+
+    private void decryptRgcryptPayload(String normalized) {
+        try {
+            RgCrypto.initialize();
+            String scope = RgCryptoDialogScope.fromMessageObject(this);
+            RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(ApplicationLoader.applicationContext, currentAccount);
+            try {
+                RgCryptoEnvelope envelope = RgCryptoEnvelope.decodeFromTransport(normalized);
+                if (envelope.senderId != null && envelope.senderSigningKid != null) {
+                    boolean hasAny = cache.hasAnySigningKeys(envelope.senderId);
+                    boolean hasKid = cache.hasSigningKid(envelope.senderId, envelope.senderSigningKid);
+                    if (hasAny && !hasKid) {
+                        rgcryptDecryptResult = RgCryptoDecryptResult.needKey(
+                                envelope.senderSigningKid,
+                                envelope.senderId,
+                                RgCryptoDecryptResult.SignatureState.UNKNOWN
+                        );
+                        if (rgcryptDecryptResult != null) {
+                            rgcryptDecryptResult.status = RgCryptoDecryptResult.Status.NEED_KEY;
+                        }
+                        // Skip decryption until new sender key is imported.
+                        if (rgcryptDecryptResult != null) {
+                            String kid = rgcryptDecryptResult.missingKid != null ? rgcryptDecryptResult.missingKid : "?";
+                            messageText = "\uD83D\uDD12 Нет ключа (KID " + kid + ")";
+                            return;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // fall through to normal decode path
+            }
+            rgcryptDecryptResult = RgCryptoTextCodec.unpackText(
+                    normalized,
+                    scope,
+                    RgCryptoKeysetStorage.getOrCreateHpkeKeyset(ApplicationLoader.applicationContext, currentAccount, null),
+                    (senderId, signingKid) -> cache.getSigningKeyset(senderId, signingKid)
+            );
+        } catch (Exception e) {
+            rgcryptDecryptResult = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, null,
+                    RgCryptoDecryptResult.SignatureState.UNKNOWN);
+        }
+    }
+
+
+    private static String extractPrefixPayload(String raw, String prefix) {
+        if (raw == null || prefix == null) {
+            return null;
+        }
+        int idx = raw.indexOf(prefix);
+        if (idx < 0) {
+            return null;
+        }
+        return raw.substring(idx);
     }
 
     private String getUnsupportedMessageText() {

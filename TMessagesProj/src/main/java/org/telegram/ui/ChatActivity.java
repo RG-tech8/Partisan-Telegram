@@ -186,6 +186,14 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
+import org.telegram.messenger.partisan.rgcrypto.RgCrypto;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCard;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCardCodec;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyRequest;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeysetStorage;
+import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringStore;
+import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoTrustState;
+import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringCache;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.camera.CameraView;
 import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
@@ -413,6 +421,46 @@ public class ChatActivity extends BaseFragment implements
     private final @NonNull BlurredBackgroundSourceWrapped navbarContentSourceWallpaper;
     private final @NonNull BlurredBackgroundDrawableViewFactory navbarContentDrawableFactory;
 
+    private void sendRgcryptText(String text) {
+        if (text == null) {
+            return;
+        }
+        SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(
+                text,
+                dialog_id,
+                null,
+                getThreadMessage(),
+                null,
+                false,
+                null,
+                null,
+                null,
+                true,
+                0,
+                0,
+                null,
+                false
+        );
+        params.monoForumPeer = getSendMonoForumPeerId();
+        params.suggestionParams = getSendMessageSuggestionParams();
+        getSendMessagesHelper().sendMessage(params);
+    }
+
+    private void sendMyKeyCard() {
+        try {
+            RgCrypto.initialize();
+            RgCryptoKeyCard card = RgCryptoKeyCard.create(
+                    RgCryptoKeysetStorage.getOrCreateSigningKeyset(getContext(), currentAccount, null),
+                    RgCryptoKeysetStorage.getOrCreateHpkeKeyset(getContext(), currentAccount, null),
+                    null
+            );
+            String payload = RgCryptoKeyCardCodec.pack(card);
+            sendRgcryptText(payload);
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
     private Dialog closeChatDialog;
     private boolean showCloseChatDialogLater;
     private FrameLayout progressView;
@@ -436,6 +484,8 @@ public class ChatActivity extends BaseFragment implements
     protected ActionBarMenuItem searchItem;
     private ActionBarMenuItem.Item translateItem;
     private ActionBarMenuItem searchIconItem;
+    private ActionBarMenuItem rgcryptSendKeyItem;
+    private ActionBarMenuItem rgcryptResetItem;
     private ActionBarMenu.LazyItem audioCallIconItem;
     private boolean searchItemVisible;
     private RadialProgressView progressBar;
@@ -1215,6 +1265,13 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_SUGGESTION_EDIT_TIME = 112;
     public final static int OPTION_SUGGESTION_EDIT_MESSAGE = 113;
     public final static int OPTION_SUGGESTION_ADD_OFFER = 114;
+    public final static int OPTION_COPY_ORIGINAL = 115;
+    public final static int OPTION_RGCRYPT_REQUEST_KEY = 116;
+    public final static int OPTION_RGCRYPT_SEND_KEY = 117;
+    public final static int OPTION_RGCRYPT_IMPORT_KEYCARD = 118;
+    public final static int OPTION_RGCRYPT_SHOW_FINGERPRINT = 119;
+    private final static int RGCRYPT_SEND_KEY_MENU = 1200;
+    private final static int RGCRYPT_RESET_KEYS_MENU = 1201;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -2006,6 +2063,11 @@ public class ChatActivity extends BaseFragment implements
             if (suggestEmojiPanel != null) {
                 suggestEmojiPanel.forceClose();
             }
+        }
+
+        @Override
+        public void onRgcryptStateChanged(boolean enabled) {
+            updateTitleIcons();
         }
 
         @Override
@@ -3803,6 +3865,40 @@ public class ChatActivity extends BaseFragment implements
                         getMessagesController().getTopicsController().toggleViewForumAsMessages(-dialog_id, false);
                         TopicsFragment.prepareToSwitchAnimation(ChatActivity.this);
                     }
+                } else if (id == RGCRYPT_SEND_KEY_MENU) {
+                    sendMyKeyCard();
+                } else if (id == RGCRYPT_RESET_KEYS_MENU) {
+                    if (getParentActivity() == null) {
+                        return;
+                    }
+                    DialogCheckBox clearImportedKeys = new DialogCheckBox(getParentActivity());
+                    clearImportedKeys.setTextAndCheck("Сбросить импортированные ключи", false);
+                    clearImportedKeys.setPadding(0, AndroidUtilities.dp(6), 0, AndroidUtilities.dp(6));
+                    new AlertDialog.Builder(getParentActivity())
+                            .setTitle("RGCRYPT")
+                            .setMessage("Сбросить ключи и сгенерировать новые? Старые сообщения больше не расшифруются.")
+                            .setView(clearImportedKeys)
+                            .setPositiveButton("Сбросить", (dialog, which) -> {
+                                boolean shouldClearImported = clearImportedKeys.isChecked();
+                                Utilities.globalQueue.postRunnable(() -> {
+                                    RgCryptoKeysetStorage.resetKeysets(getParentActivity(), currentAccount, null);
+                                    if (shouldClearImported) {
+                                        new RgCryptoKeyringStore(getParentActivity(), currentAccount).clearAll();
+                                        RgCryptoKeyringCache.get(getParentActivity(), currentAccount).clearAll();
+                                    }
+                                });
+                                AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT", "Ключи сброшены. Отправьте новый KeyCard.");
+                            })
+                            .setNegativeButton("Отмена", null)
+                            .show();
+                } else if (id == OPTION_RGCRYPT_IMPORT_KEYCARD || id == OPTION_RGCRYPT_SHOW_FINGERPRINT) {
+                    MessageObject messageObject = getSingleSelectedMessageObject();
+                    if (messageObject != null) {
+                        selectedObject = messageObject;
+                        selectedObjectGroup = null;
+                        processSelectedOption(id);
+                    }
+                    clearSelectionMode();
                 } else if (id == copy) {
                     SpannableStringBuilder str = new SpannableStringBuilder();
                     long previousUid = 0;
@@ -4431,6 +4527,7 @@ public class ChatActivity extends BaseFragment implements
         }
 
         ActionBarMenu menu = actionBar.createMenu();
+        actionBar.bringChildToFront(menu);
 
         if (chatMode == MODE_QUICK_REPLIES && !QuickRepliesController.isSpecial(quickReplyShortcut)) {
             menu.addItem(edit_quick_reply, R.drawable.group_edit).setContentDescription(LocaleController.getString(R.string.Edit));
@@ -4449,6 +4546,13 @@ public class ChatActivity extends BaseFragment implements
                 searchItem.setVisibility(View.VISIBLE);
             }
             searchItemVisible = false;
+            if (chatMode == MODE_DEFAULT) {
+                rgcryptSendKeyItem = menu.addItem(RGCRYPT_SEND_KEY_MENU, R.drawable.msg_mini_lock3);
+                rgcryptSendKeyItem.setContentDescription("RGCRYPT key");
+                rgcryptResetItem = menu.addItem(RGCRYPT_RESET_KEYS_MENU, R.drawable.msg_mini_lock3);
+                rgcryptResetItem.setContentDescription("RGCRYPT reset keys");
+                updateRgcryptActionItems();
+            }
         }
 
         if (chatMode == 0 && (threadMessageId == 0 || isTopic) && !UserObject.isReplyUser(currentUser) && !isReport()) {
@@ -10301,12 +10405,31 @@ public class ChatActivity extends BaseFragment implements
             actionModeViews.add(actionMode.addItemWithWidth(copy, R.drawable.msg_copy, AndroidUtilities.dp(54), LocaleController.getString(R.string.Copy)));
             actionModeViews.add(actionMode.addItemWithWidth(delete, R.drawable.msg_delete, AndroidUtilities.dp(54), LocaleController.getString(R.string.Delete)));
         }
+        actionModeViews.add(actionMode.addItemWithWidth(OPTION_RGCRYPT_IMPORT_KEYCARD, R.drawable.msg_mini_lock3, AndroidUtilities.dp(54), "Импортировать ключ"));
+        actionModeViews.add(actionMode.addItemWithWidth(OPTION_RGCRYPT_SHOW_FINGERPRINT, R.drawable.msg_mini_lock3, AndroidUtilities.dp(54), "Показать отпечаток"));
         actionMode.setItemVisibility(edit, canEditMessagesCount == 1 && selectedMessagesIds[0].size() + selectedMessagesIds[1].size() == 1 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(copy, !getMessagesController().isChatNoForwards(currentChat) && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(star, selectedMessagesCanStarIds[0].size() + selectedMessagesCanStarIds[1].size() != 0 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(delete, cantDeleteMessagesCount == 0 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(tag_message, getUserConfig().isPremium() ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(share, View.GONE);
+        actionMode.setItemVisibility(OPTION_RGCRYPT_IMPORT_KEYCARD, View.GONE);
+        actionMode.setItemVisibility(OPTION_RGCRYPT_SHOW_FINGERPRINT, View.GONE);
+    }
+
+    @Nullable
+    private MessageObject getSingleSelectedMessageObject() {
+        int count = selectedMessagesIds[0].size() + selectedMessagesIds[1].size();
+        if (count != 1) {
+            return null;
+        }
+        if (selectedMessagesIds[0].size() == 1) {
+            return selectedMessagesIds[0].valueAt(0);
+        }
+        if (selectedMessagesIds[1].size() == 1) {
+            return selectedMessagesIds[1].valueAt(0);
+        }
+        return null;
     }
 
     private void hideTagSelector() {
@@ -19080,6 +19203,8 @@ public class ChatActivity extends BaseFragment implements
                 ActionBarMenuItem deleteItem = actionBar.createActionMode().getItem(delete);
                 ActionBarMenuItem tagItem = actionBar.createActionMode().getItem(tag_message);
                 ActionBarMenuItem shareItem = actionBar.createActionMode().getItem(share);
+                ActionBarMenuItem rgcryptImportItem = actionBar.createActionMode().getItem(OPTION_RGCRYPT_IMPORT_KEYCARD);
+                ActionBarMenuItem rgcryptFingerprintItem = actionBar.createActionMode().getItem(OPTION_RGCRYPT_SHOW_FINGERPRINT);
 
                 boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || hasSelectedNoforwardsMessage();
                 if (prevCantForwardCount == 0 && cantForwardMessagesCount != 0 || prevCantForwardCount != 0 && cantForwardMessagesCount == 0) {
@@ -19108,11 +19233,11 @@ public class ChatActivity extends BaseFragment implements
                     });
                     forwardButtonAnimation.start();
                 } else {
-                    if (forwardItem != null) {
-                        forwardItem.setEnabled(cantForwardMessagesCount == 0 || noforwards);
-                        forwardItem.setAlpha(cantForwardMessagesCount == 0 ? 1.0f : 0.5f);
-                        if (noforwards) {
-                        } else if (forwardItem.getBackground() == null) {
+                if (forwardItem != null) {
+                    forwardItem.setEnabled(cantForwardMessagesCount == 0 || noforwards);
+                    forwardItem.setAlpha(cantForwardMessagesCount == 0 ? 1.0f : 0.5f);
+                    if (noforwards) {
+                    } else if (forwardItem.getBackground() == null) {
                             forwardItem.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 3));
                         }
                     }
@@ -19535,6 +19660,7 @@ public class ChatActivity extends BaseFragment implements
                         break;
                     }
                 }
+
             }
         }
         if (hasHelp) {
@@ -19561,19 +19687,26 @@ public class ChatActivity extends BaseFragment implements
         if (forceToggleMuted) {
             isMuted = !isMuted;
         }
+        boolean rgcryptEnabled = isRgcryptEnabledForCurrentDialog();
         Drawable rightIcon = null;
         if (!UserObject.isReplyUser(currentUser) && (!isThreadChat() || isTopic) && isMuted) {
             rightIcon = getThemedDrawable(Theme.key_drawable_muteIconDrawable);
         }
         Drawable leftIcon = null;
-        if (isEncryptedChat()) {
+        if (isEncryptedChat() || rgcryptEnabled) {
             leftIcon = getThemedDrawable(Theme.key_drawable_lockIconDrawable);
+            if (leftIcon != null) {
+                leftIcon = leftIcon.mutate();
+                int colorKey = rgcryptEnabled ? Theme.key_chat_messagePanelVoiceLock : Theme.key_chat_lockIcon;
+                leftIcon.setColorFilter(new PorterDuffColorFilter(getThemedColor(colorKey), PorterDuff.Mode.MULTIPLY));
+            }
         } else if (currentChat != null) {
             leftIcon = avatarContainer.getBotVerificationDrawable(DialogObject.getBotVerificationIcon(currentChat), false);
         } else if (currentUser != null && !UserObject.isUserSelf(currentUser)) {
             leftIcon = avatarContainer.getBotVerificationDrawable(DialogObject.getBotVerificationIcon(currentUser), false);
         }
         avatarContainer.setTitleIcons(leftIcon, rightIcon);
+        updateRgcryptActionItems();
         if (!forceToggleMuted && muteItem != null) {
             if (isMuted) {
                 muteItem.setRightIconVisibility(View.GONE);
@@ -19592,6 +19725,33 @@ public class ChatActivity extends BaseFragment implements
         }
         if (chatNotificationsPopupWrapper != null) {
             chatNotificationsPopupWrapper.update(dialog_id, getTopicId(), null);
+        }
+    }
+
+    private boolean isRgcryptEnabledForCurrentDialog() {
+        if (dialog_id == 0) {
+            return false;
+        }
+        if (chatActivityEnterView != null) {
+            return chatActivityEnterView.isRgcryptEnabled();
+        }
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+        return prefs.getBoolean("rgcrypt_enabled_" + currentAccount + "_" + dialog_id, false);
+    }
+
+    private void updateRgcryptActionItems() {
+        if (rgcryptSendKeyItem == null && rgcryptResetItem == null) {
+            return;
+        }
+        int colorKey = isRgcryptEnabledForCurrentDialog()
+                ? Theme.key_chat_messagePanelVoiceLock
+                : Theme.key_actionBarDefaultIcon;
+        PorterDuffColorFilter filter = new PorterDuffColorFilter(getThemedColor(colorKey), PorterDuff.Mode.MULTIPLY);
+        if (rgcryptSendKeyItem != null && rgcryptSendKeyItem.getIconView() != null) {
+            rgcryptSendKeyItem.getIconView().setColorFilter(filter);
+        }
+        if (rgcryptResetItem != null && rgcryptResetItem.getIconView() != null) {
+            rgcryptResetItem.getIconView().setColorFilter(filter);
         }
     }
 
@@ -33058,6 +33218,113 @@ public class ChatActivity extends BaseFragment implements
                 undoView.showWithAction(0, UndoView.ACTION_MESSAGE_COPIED, null);
                 break;
             }
+            case OPTION_COPY_ORIGINAL: {
+                if (selectedObject != null && selectedObject.rgcryptOriginalText != null) {
+                    AndroidUtilities.addToClipboard(selectedObject.rgcryptOriginalText);
+                    createUndoView();
+                    if (undoView == null) {
+                        return;
+                    }
+                    undoView.showWithAction(0, UndoView.ACTION_MESSAGE_COPIED, null);
+                }
+                break;
+            }
+            case OPTION_RGCRYPT_REQUEST_KEY: {
+                try {
+                    String requesterId = String.valueOf(getUserConfig().getClientUserId());
+                    String payload = RgCryptoKeyRequest.pack(requesterId);
+                    sendRgcryptText(payload);
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+                break;
+            }
+            case OPTION_RGCRYPT_SEND_KEY: {
+                sendMyKeyCard();
+                break;
+            }
+            case OPTION_RGCRYPT_IMPORT_KEYCARD: {
+                if (selectedObject != null && selectedObject.rgcryptKeyCardJson != null) {
+                    final Context ctx = getContext();
+                    if (ctx == null) {
+                        break;
+                    }
+                    final String peerId = String.valueOf(selectedObject.getFromChatId());
+                    final String keyCardJson = selectedObject.rgcryptKeyCardJson;
+                    Utilities.globalQueue.postRunnable(() -> {
+                        boolean keyChanged = false;
+                        try {
+                            RgCryptoKeyringStore store = new RgCryptoKeyringStore(ctx, currentAccount);
+                            RgCryptoKeyCard card = RgCryptoKeyCard.fromJson(keyCardJson);
+                            String deviceId = org.telegram.messenger.partisan.rgcrypto.RgCryptoIds.normalizeDeviceId(card.deviceId);
+                            String signingKid = card.signingKid;
+                            String encryptionKid = card.encryptionKid;
+                            if (signingKid == null) {
+                                signingKid = org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys.kidFromKeyset(
+                                        org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys.parsePublicKeyset(card.signingKeysetJson));
+                            }
+                            if (encryptionKid == null) {
+                                encryptionKid = org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys.kidFromKeyset(
+                                        org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys.parsePublicKeyset(card.encryptionKeysetJson));
+                            }
+                            org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringEntry existing =
+                                    store.getByKids(peerId, deviceId, signingKid, encryptionKid);
+                            keyChanged = existing != null &&
+                                    (!existing.signingKeysetJson.equals(card.signingKeysetJson) ||
+                                            !existing.encryptionKeysetJson.equals(card.encryptionKeysetJson));
+                            store.importKeyCard(peerId, keyCardJson, RgCryptoTrustState.UNTRUSTED, true);
+                            boolean finalKeyChanged = keyChanged;
+                            AndroidUtilities.runOnUIThread(() -> {
+                                if (finalKeyChanged) {
+                                    AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Ключ изменился. Проверьте отпечаток.");
+                                } else {
+                                    AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Ключ импортирован");
+                                }
+                                RgCryptoKeyringCache.get(ctx, currentAccount).refreshForPeers(Collections.singletonList(peerId));
+                            });
+                        } catch (Exception e) {
+                            FileLog.e(e);
+                            AndroidUtilities.runOnUIThread(() ->
+                                    AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Не удалось импортировать ключ"));
+                        }
+                    });
+                }
+                break;
+            }
+            case OPTION_RGCRYPT_SHOW_FINGERPRINT: {
+                if (selectedObject != null && selectedObject.rgcryptKeyCardFingerprint != null) {
+                    String peerId = String.valueOf(selectedObject.getFromChatId());
+                    String peerName = peerId;
+                    long fromId = selectedObject.getFromChatId();
+                    if (fromId > 0) {
+                        TLRPC.User user = getMessagesController().getUser(fromId);
+                        if (user != null) {
+                            peerName = UserObject.getUserName(user);
+                        }
+                    } else if (fromId < 0) {
+                        TLRPC.Chat chat = getMessagesController().getChat(-fromId);
+                        if (chat != null) {
+                            peerName = chat.title;
+                        }
+                    }
+                    RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(getContext(), currentAccount);
+                    int trust = cache.getTrustState(peerId,
+                            selectedObject.rgcryptKeyCardSigningKid,
+                            selectedObject.rgcryptKeyCardEncryptionKid);
+                    boolean trusted = trust == RgCryptoTrustState.TRUSTED;
+                    boolean reused = cache.isSigningKidReusedByOtherPeer(peerId, selectedObject.rgcryptKeyCardSigningKid);
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(peerName).append("\n");
+                    sb.append(trusted ? "🔐 Key verified" : "Key NOT verified").append("\n");
+                    sb.append(selectedObject.rgcryptKeyCardSignatureOk ? "Signature: OK" : "Signature: BAD").append("\n");
+                    sb.append("Fingerprint: ").append(selectedObject.rgcryptKeyCardFingerprint);
+                    if (reused) {
+                        sb.append("\nWarning: same key used by another contact");
+                    }
+                    AlertsCreator.showSimpleAlert(this, "Отпечаток", sb.toString());
+                }
+                break;
+            }
             case OPTION_SAVE_TO_GALLERY: {
                 if (Build.VERSION.SDK_INT >= 23 && (Build.VERSION.SDK_INT <= 28 || BuildVars.NO_SCOPED_STORAGE) && getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                     getParentActivity().requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
@@ -44818,6 +45085,29 @@ public class ChatActivity extends BaseFragment implements
                 items.add(LocaleController.getString(R.string.Copy));
                 options.add(OPTION_COPY);
                 icons.add(R.drawable.msg_copy);
+                if (selectedObject.rgcryptOriginalText != null) {
+                    items.add("Копировать оригинал");
+                    options.add(OPTION_COPY_ORIGINAL);
+                    icons.add(R.drawable.msg_copy);
+                }
+                if (selectedObject.rgcryptDecryptResult != null && selectedObject.rgcryptDecryptResult.status == org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.NEED_KEY) {
+                    items.add("Попросить ключ");
+                    options.add(OPTION_RGCRYPT_REQUEST_KEY);
+                    icons.add(R.drawable.msg_mini_lock3);
+                }
+                if (selectedObject.rgcryptKeyRequestRequesterId != null) {
+                    items.add("Отправить мой ключ");
+                    options.add(OPTION_RGCRYPT_SEND_KEY);
+                    icons.add(R.drawable.msg_mini_lock3);
+                }
+                if (selectedObject.rgcryptKeyCardJson != null) {
+                    items.add("Импортировать ключ");
+                    options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
+                    icons.add(R.drawable.msg_mini_lock3);
+                    items.add("Показать отпечаток");
+                    options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
+                    icons.add(R.drawable.msg_mini_lock3);
+                }
             }
             items.add(LocaleController.getString(R.string.CancelSending));
             options.add(OPTION_CANCEL_SENDING);
@@ -44906,6 +45196,29 @@ public class ChatActivity extends BaseFragment implements
                 items.add(LocaleController.getString(R.string.Copy));
                 options.add(OPTION_COPY);
                 icons.add(R.drawable.msg_copy);
+                if (selectedObject.rgcryptOriginalText != null) {
+                    items.add("Копировать оригинал");
+                    options.add(OPTION_COPY_ORIGINAL);
+                    icons.add(R.drawable.msg_copy);
+                }
+                if (selectedObject.rgcryptDecryptResult != null && selectedObject.rgcryptDecryptResult.status == org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.NEED_KEY) {
+                    items.add("Попросить ключ");
+                    options.add(OPTION_RGCRYPT_REQUEST_KEY);
+                    icons.add(R.drawable.msg_mini_lock3);
+                }
+                if (selectedObject.rgcryptKeyRequestRequesterId != null) {
+                    items.add("Отправить мой ключ");
+                    options.add(OPTION_RGCRYPT_SEND_KEY);
+                    icons.add(R.drawable.msg_mini_lock3);
+                }
+                if (selectedObject.rgcryptKeyCardJson != null) {
+                    items.add("Импортировать ключ");
+                    options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
+                    icons.add(R.drawable.msg_mini_lock3);
+                    items.add("Показать отпечаток");
+                    options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
+                    icons.add(R.drawable.msg_mini_lock3);
+                }
             }
             items.add(LocaleController.getString(chatMode == MODE_SAVED && threadMessageId != getUserConfig().getClientUserId() ? R.string.Remove : R.string.Delete));
             options.add(OPTION_DELETE);
@@ -44937,6 +45250,29 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.Copy));
                     options.add(OPTION_COPY);
                     icons.add(R.drawable.msg_copy);
+                    if (selectedObject.rgcryptOriginalText != null) {
+                        items.add("Копировать оригинал");
+                        options.add(OPTION_COPY_ORIGINAL);
+                        icons.add(R.drawable.msg_copy);
+                    }
+                    if (selectedObject.rgcryptDecryptResult != null && selectedObject.rgcryptDecryptResult.status == org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.NEED_KEY) {
+                        items.add("Попросить ключ");
+                        options.add(OPTION_RGCRYPT_REQUEST_KEY);
+                    icons.add(R.drawable.msg_mini_lock3);
+                    }
+                    if (selectedObject.rgcryptKeyRequestRequesterId != null) {
+                        items.add("Отправить мой ключ");
+                        options.add(OPTION_RGCRYPT_SEND_KEY);
+                    icons.add(R.drawable.msg_mini_lock3);
+                    }
+                    if (selectedObject.rgcryptKeyCardJson != null) {
+                        items.add("Импортировать ключ");
+                        options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
+                    icons.add(R.drawable.msg_mini_lock3);
+                        items.add("Показать отпечаток");
+                        options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
+                    icons.add(R.drawable.msg_mini_lock3);
+                    }
                 }
                 if (!isThreadChat() && chatMode != MODE_SCHEDULED && currentChat != null && primaryMessage != null && (currentChat.has_link || primaryMessage.hasReplies()) && currentChat.megagroup && primaryMessage.canViewThread()) {
                     if (primaryMessage.hasReplies()) {
@@ -45206,6 +45542,11 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.Copy));
                     options.add(OPTION_COPY);
                     icons.add(R.drawable.msg_copy);
+                    if (selectedObject.rgcryptOriginalText != null) {
+                    items.add("Копировать оригинал");
+                        options.add(OPTION_COPY_ORIGINAL);
+                        icons.add(R.drawable.msg_copy);
+                    }
                 }
                 if (!isThreadChat() && chatMode != MODE_SCHEDULED && currentChat != null && primaryMessage != null && (currentChat.has_link || primaryMessage.hasReplies()) && currentChat.megagroup && primaryMessage.canViewThread()) {
                     if (primaryMessage.hasReplies()) {

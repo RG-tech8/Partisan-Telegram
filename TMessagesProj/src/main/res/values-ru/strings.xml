@@ -263,4 +263,6 @@
     <string name="RemindTodayAt">\'Отправить сегодня в\' HH:mm</string>
     <string name="RemindDayAt">\'Отправить\' d MMM \'в\' HH:mm</string>
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
+    <string name="RgcryptAutoDecrypt">RGCRYPT: авторасшифровка</string>
+    <string name="RgcryptAutoDecryptInfo">Автоматически расшифровывать RGCRYPT‑сообщения в чатах.</string>
 </resources>

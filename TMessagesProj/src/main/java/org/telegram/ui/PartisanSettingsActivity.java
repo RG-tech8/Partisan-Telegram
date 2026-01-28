@@ -9,6 +9,7 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
@@ -40,6 +41,7 @@ import org.telegram.messenger.partisan.verification.VerificationStorage;
 import org.telegram.messenger.partisan.verification.VerificationUpdatesChecker;
 import org.telegram.messenger.partisan.voicechange.VoiceChangeSettings;
 import org.telegram.messenger.partisan.voicechange.VoiceChangeSettingsFragment;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -88,6 +90,8 @@ public class PartisanSettingsActivity extends BaseFragment {
     private int savedChannelsDetailRow;
     private int reactionsRow;
     private int reactionsDetailRow;
+    private int rgcryptAutoDecryptRow;
+    private int rgcryptAutoDecryptDetailRow;
     private int foreignAgentsRow;
     private int foreignAgentsDetailRow;
     private int onScreenLockActionRow;
@@ -290,6 +294,11 @@ public class PartisanSettingsActivity extends BaseFragment {
                 SharedConfig.allowReactions = !SharedConfig.allowReactions;
                 SharedConfig.saveConfig();
                 ((TextCheckCell) view).setChecked(SharedConfig.allowReactions);
+            } else if (position == rgcryptAutoDecryptRow) {
+                SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+                boolean enabled = prefs.getBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, true);
+                prefs.edit().putBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, !enabled).apply();
+                ((TextCheckCell) view).setChecked(!enabled);
             } else if (position == foreignAgentsRow) {
                 SharedConfig.cutForeignAgentsText = !SharedConfig.cutForeignAgentsText;
                 SharedConfig.saveConfig();
@@ -411,6 +420,8 @@ public class PartisanSettingsActivity extends BaseFragment {
         savedChannelsDetailRow = rowCount++;
         reactionsRow = rowCount++;
         reactionsDetailRow = rowCount++;
+        rgcryptAutoDecryptRow = rowCount++;
+        rgcryptAutoDecryptDetailRow = rowCount++;
         foreignAgentsRow = rowCount++;
         foreignAgentsDetailRow = rowCount++;
         isClearAllDraftsOnScreenLockRow = rowCount++;
@@ -460,7 +471,7 @@ public class PartisanSettingsActivity extends BaseFragment {
             return position != versionDetailRow && position != idDetailRow
                     && position != disableAvatarDetailRow && position != renameChatDetailRow && position != deleteMyMessagesDetailRow
                     && position != deleteAfterReadDetailRow && position != savedChannelsDetailRow
-                    && position != reactionsDetailRow && position != foreignAgentsDetailRow
+                    && position != reactionsDetailRow && position != rgcryptAutoDecryptDetailRow && position != foreignAgentsDetailRow
                     && position != onScreenLockActionDetailRow && position != isClearAllDraftsOnScreenLockDetailRow
                     && position != showCallButtonDetailRow && position != isDeleteMessagesForAllByDefaultDetailRow
                     && position != marketIconsDetailRow && position!= confirmDangerousActionDetailRow
@@ -535,6 +546,11 @@ public class PartisanSettingsActivity extends BaseFragment {
                     } else if (position == reactionsRow) {
                         textCell.setTextAndCheck(LocaleController.getString("ReactToMessages", R.string.ReactToMessages),
                                 SharedConfig.allowReactions, false);
+                    } else if (position == rgcryptAutoDecryptRow) {
+                        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+                        boolean enabled = prefs.getBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, true);
+                        textCell.setTextAndCheck(LocaleController.getString("RgcryptAutoDecrypt", R.string.RgcryptAutoDecrypt),
+                                enabled, false);
                     } else if (position == foreignAgentsRow) {
                         textCell.setTextAndCheck(LocaleController.getString("CutForeignAgentsText", R.string.CutForeignAgentsText),
                                 SharedConfig.cutForeignAgentsText, false);
@@ -581,6 +597,9 @@ public class PartisanSettingsActivity extends BaseFragment {
                         cell.setBackgroundDrawable(Theme.getThemedDrawable(mContext, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
                     } else if (position == reactionsDetailRow) {
                         cell.setText(LocaleController.getString("ReactToMessagesInfo", R.string.ReactToMessagesInfo));
+                        cell.setBackgroundDrawable(Theme.getThemedDrawable(mContext, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
+                    } else if (position == rgcryptAutoDecryptDetailRow) {
+                        cell.setText(LocaleController.getString("RgcryptAutoDecryptInfo", R.string.RgcryptAutoDecryptInfo));
                         cell.setBackgroundDrawable(Theme.getThemedDrawable(mContext, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
                     } else if (position == foreignAgentsDetailRow) {
                         cell.setText(LocaleController.getString("CutForeignAgentsTextInfo", R.string.CutForeignAgentsTextInfo));
@@ -688,7 +707,7 @@ public class PartisanSettingsActivity extends BaseFragment {
         public int getItemViewType(int position) {
             if (position == versionRow || position == idRow || position == disableAvatarRow
                     || position == renameChatRow || position == deleteMyMessagesRow || position == deleteAfterReadRow
-                    || position == savedChannelsRow || position == reactionsRow || position == foreignAgentsRow
+                    || position == savedChannelsRow || position == reactionsRow || position == rgcryptAutoDecryptRow || position == foreignAgentsRow
                     || position == isClearAllDraftsOnScreenLockRow || position == showCallButtonRow
                     || position == isDeleteMessagesForAllByDefaultRow || position == marketIconsRow
                     || position == confirmDangerousActionRow) {
@@ -696,7 +715,7 @@ public class PartisanSettingsActivity extends BaseFragment {
             } else if (position == versionDetailRow || position == idDetailRow || position == disableAvatarDetailRow
                     || position == renameChatDetailRow || position == deleteMyMessagesDetailRow
                     || position == deleteAfterReadDetailRow || position == savedChannelsDetailRow
-                    || position == reactionsDetailRow || position == foreignAgentsDetailRow
+                    || position == reactionsDetailRow || position == rgcryptAutoDecryptDetailRow || position == foreignAgentsDetailRow
                     || position == onScreenLockActionDetailRow || position == isClearAllDraftsOnScreenLockDetailRow
                     || position == showCallButtonDetailRow || position == isDeleteMessagesForAllByDefaultDetailRow
                     || position == marketIconsDetailRow || position == verifiedDetailRow

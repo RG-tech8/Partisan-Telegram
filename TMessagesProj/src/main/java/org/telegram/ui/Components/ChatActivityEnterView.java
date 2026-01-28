@@ -114,6 +114,10 @@ import androidx.interpolator.view.animation.FastOutSlowInInterpolator;
 import androidx.recyclerview.widget.ChatListItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.AnimationNotificationsLocker;
@@ -150,6 +154,15 @@ import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
 import org.telegram.messenger.fakepasscode.RemoveAfterReadingMessages;
 import org.telegram.messenger.partisan.voicechange.VoiceChangeType;
 import org.telegram.messenger.partisan.voicechange.VoiceChangerUtils;
+import org.telegram.messenger.partisan.rgcrypto.RgCrypto;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoDialogScope;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoRecipientPublic;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoTextCodec;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeysetStorage;
+import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringStore;
+import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringCache;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLRPC;
@@ -201,8 +214,6 @@ import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.ChatActivityBotWebViewButton;
 import org.telegram.ui.bots.WebViewRequestProps;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -360,6 +371,10 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         default boolean hasForwardingMessages() {
             return false;
+        }
+
+        default void onRgcryptStateChanged(boolean enabled) {
+
         }
 
         /**
@@ -630,6 +645,8 @@ public class ChatActivityEnterView extends FrameLayout implements
     protected View topView;
     private BotKeyboardView botKeyboardView;
     private ImageView notifyButton;
+    private ImageView rgcryptButton;
+    private boolean rgcryptEnabled;
     @Nullable
     private ImageView scheduledButton;
     @Nullable
@@ -2747,6 +2764,18 @@ public class ChatActivityEnterView extends FrameLayout implements
                     updateFieldHint(true);
                 }
             });
+
+            rgcryptButton = new ImageView(context);
+            rgcryptButton.setScaleType(ImageView.ScaleType.CENTER);
+            rgcryptButton.setImageResource(R.drawable.msg_mini_lock3);
+            rgcryptButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector)));
+            rgcryptButton.setContentDescription("RGCRYPT");
+            attachLayout.addView(rgcryptButton, LayoutHelper.createLinear(DEFAULT_HEIGHT, DEFAULT_HEIGHT));
+            rgcryptButton.setOnClickListener(v -> {
+                setRgcryptEnabled(!rgcryptEnabled);
+                updateFieldHint(true);
+            });
+            updateRgcryptButtonState();
 
             attachButton = new ImageView(context) {
                 @Override
@@ -6320,6 +6349,8 @@ public class ChatActivityEnterView extends FrameLayout implements
         checkRoundVideo();
         checkChannelRights();
         updateFieldHint(false);
+        loadRgcryptEnabled();
+        RgCryptoKeyringCache.get(getContext(), currentAccount).refreshForPeers(collectRgcryptPeerIds());
         if (messageEditText != null) {
             updateSendAsButton(parentFragment != null && parentFragment.getFragmentBeginToShow());
         }
@@ -7346,6 +7377,32 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         boolean supportsNewEntities = supportsSendingNewEntities();
         int maxLength = accountInstance.getMessagesController().maxMessageLength;
+        boolean useRgcrypt = rgcryptEnabled;
+        String rgcryptDialogScope = null;
+        String rgcryptSenderId = null;
+        java.util.List<RgCryptoRecipientPublic> rgcryptRecipients = null;
+        com.google.crypto.tink.KeysetHandle rgcryptSigningKeyset = null;
+        if (useRgcrypt) {
+            try {
+                RgCrypto.initialize();
+                long topicId = parentFragment != null && parentFragment.isTopic ? parentFragment.getTopicId() : 0;
+                long myUserId = UserConfig.getInstance(currentAccount).getClientUserId();
+                rgcryptDialogScope = RgCryptoDialogScope.fromDialogIdAndTopicId(dialog_id, topicId, myUserId);
+                rgcryptSenderId = String.valueOf(myUserId);
+                java.util.List<String> peerIds = collectRgcryptPeerIds();
+                RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(getContext(), currentAccount);
+                rgcryptRecipients = cache.getRecipientsForPeers(peerIds);
+                com.google.crypto.tink.KeysetHandle myHpkeKeyset =
+                        RgCryptoKeysetStorage.getOrCreateHpkeKeyset(getContext(), currentAccount, null);
+                rgcryptRecipients.add(RgCryptoKeys.recipientFromPrivateKeyset(myHpkeKeyset));
+                rgcryptRecipients = dedupeRecipients(rgcryptRecipients);
+                rgcryptSigningKeyset =
+                        RgCryptoKeysetStorage.getOrCreateSigningKeyset(getContext(), currentAccount, null);
+            } catch (Exception e) {
+                FileLog.e(e);
+                return false;
+            }
+        }
         if (text.length() != 0) {
             if (delegate != null && parentFragment != null && (scheduleDate != 0) == parentFragment.isInScheduleMode()) {
                 delegate.prepareMessageSending();
@@ -7393,6 +7450,20 @@ public class ChatActivityEnterView extends FrameLayout implements
                     part = AndroidUtilities.getTrimmedString(part);
                 }
                 CharSequence[] message = new CharSequence[]{ part };
+                if (useRgcrypt) {
+                    try {
+                        message[0] = RgCryptoTextCodec.packText(
+                                message[0].toString(),
+                                rgcryptDialogScope,
+                                rgcryptSenderId,
+                                rgcryptSigningKeyset,
+                                rgcryptRecipients
+                        );
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                        return false;
+                    }
+                }
                 ArrayList<TLRPC.MessageEntity> entities = MediaDataController.getInstance(currentAccount).getEntities(message, supportsNewEntities);
                 MessageObject.SendAnimationData sendAnimationData = null;
 
@@ -8350,9 +8421,22 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (isStories && isLiveComment) {
             layoutParams.rightMargin = dp(suggestButtonVisible ? 50 : 2) + Math.max(0, sendButton.width() - dp(DEFAULT_HEIGHT));
         } else if (attachVisible == 1 || attachVisible == 2/* && layoutParams.rightMargin != dp(2)*/) {
-            if (botButton != null && botButton.getVisibility() == VISIBLE && scheduledButton != null && scheduledButton.getVisibility() == VISIBLE && attachButton != null && attachButton.getVisibility() == VISIBLE) {
+            int rightButtons = 0;
+            if (botButton != null && botButton.getVisibility() == VISIBLE) {
+                rightButtons++;
+            }
+            if (notifyButton != null && notifyButton.getVisibility() == VISIBLE) {
+                rightButtons++;
+            }
+            if (rgcryptButton != null && rgcryptButton.getVisibility() == VISIBLE) {
+                rightButtons++;
+            }
+            if (scheduledButton != null && scheduledButton.getTag() != null) {
+                rightButtons++;
+            }
+            if (rightButtons >= 2) {
                 layoutParams.rightMargin = dp(146);
-            } else if (botButton != null && botButton.getVisibility() == VISIBLE || notifyButton != null && notifyButton.getVisibility() == VISIBLE || scheduledButton != null && scheduledButton.getTag() != null) {
+            } else if (rightButtons >= 1) {
                 layoutParams.rightMargin = dp(98);
             } else {
                 layoutParams.rightMargin = dp(50);
@@ -8377,6 +8461,81 @@ public class ChatActivityEnterView extends FrameLayout implements
             recordedAudioPanel.setLayoutParams(layoutParams2);
         }
     }
+
+    private void loadRgcryptEnabled() {
+        if (dialog_id == 0) {
+            return;
+        }
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+        rgcryptEnabled = prefs.getBoolean(rgcryptPrefKey(), false);
+        updateRgcryptButtonState();
+    }
+
+    private void setRgcryptEnabled(boolean enabled) {
+        rgcryptEnabled = enabled;
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(rgcryptPrefKey(), enabled).apply();
+        updateRgcryptButtonState();
+        if (delegate != null) {
+            delegate.onRgcryptStateChanged(enabled);
+        }
+    }
+
+    public boolean isRgcryptEnabled() {
+        return rgcryptEnabled;
+    }
+
+    private String rgcryptPrefKey() {
+        return "rgcrypt_enabled_" + currentAccount + "_" + dialog_id;
+    }
+
+    private void updateRgcryptButtonState() {
+        if (rgcryptButton == null) {
+            return;
+        }
+        int color = getThemedColor(rgcryptEnabled ? Theme.key_chat_messagePanelVoiceLock : Theme.key_glass_defaultIcon);
+        rgcryptButton.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
+        rgcryptButton.setAlpha(rgcryptEnabled ? 1f : 0.6f);
+    }
+
+    private ArrayList<String> collectRgcryptPeerIds() {
+        ArrayList<String> peerIds = new ArrayList<>();
+        if (DialogObject.isUserDialog(dialog_id)) {
+            peerIds.add(String.valueOf(dialog_id));
+            return peerIds;
+        }
+        if (DialogObject.isChatDialog(dialog_id)) {
+            TLRPC.ChatFull chatFull = info;
+            if (chatFull != null && chatFull.participants != null && chatFull.participants.participants != null) {
+                for (int i = 0; i < chatFull.participants.participants.size(); i++) {
+                    TLRPC.ChatParticipant participant = chatFull.participants.participants.get(i);
+                    if (participant != null && participant.user_id != 0) {
+                        peerIds.add(String.valueOf(participant.user_id));
+                    }
+                }
+            }
+        }
+        return peerIds;
+    }
+
+    private ArrayList<RgCryptoRecipientPublic> dedupeRecipients(List<RgCryptoRecipientPublic> recipients) {
+        ArrayList<RgCryptoRecipientPublic> unique = new ArrayList<>();
+        HashSet<String> seen = new HashSet<>();
+        if (recipients == null) {
+            return unique;
+        }
+        for (RgCryptoRecipientPublic recipient : recipients) {
+            if (recipient == null) {
+                continue;
+            }
+            String key = recipient.kid != null ? recipient.kid : String.valueOf(recipient.keyId);
+            if (seen.add(key)) {
+                unique.add(recipient);
+            }
+        }
+        return unique;
+    }
+
 
     public void startMessageTransition() {
         if (moveToSendStateRunnable != null) {

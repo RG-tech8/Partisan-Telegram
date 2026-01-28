@@ -8501,15 +8501,19 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             try {
 
-                AssetFileDescriptor assetFileDescriptor = ApplicationLoader.applicationContext.getContentResolver().openAssetFileDescriptor(uri, "r", null);
-                if (assetFileDescriptor != null ) {
-                    len = assetFileDescriptor.getLength();
+                try (AssetFileDescriptor assetFileDescriptor = ApplicationLoader.applicationContext.getContentResolver().openAssetFileDescriptor(uri, "r", null)) {
+                    if (assetFileDescriptor != null) {
+                        len = assetFileDescriptor.getLength();
+                    }
                 }
-                Cursor cursor = ApplicationLoader.applicationContext.getContentResolver().query(uri, new String[]{OpenableColumns.SIZE}, null, null, null);
-                int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
-                cursor.moveToFirst();
-                len = cursor.getLong(sizeIndex);
-                cursor.close();
+                try (Cursor cursor = ApplicationLoader.applicationContext.getContentResolver().query(uri, new String[]{OpenableColumns.SIZE}, null, null, null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
+                        if (sizeIndex >= 0) {
+                            len = cursor.getLong(sizeIndex);
+                        }
+                    }
+                }
             } catch (Exception e) {
                 FileLog.e(e);
             }
