@@ -165,7 +165,6 @@ import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoRecipientPublic;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoTextCodec;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeysetStorage;
-import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringStore;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringCache;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
@@ -5484,7 +5483,13 @@ public class ChatActivityEnterView extends FrameLayout implements
                     info.discardLivePhoto = photoEntry.discardLivePhoto;
                     info.livePhotoVideoOffset = photoEntry.livePhotoVideoOffset;
                     info.livePhotoTimestampUs = photoEntry.livePhotoTimestampUs;
-                    info.caption = photoEntry.caption != null ? photoEntry.caption.toString() : null;
+                    String caption = photoEntry.caption != null ? photoEntry.caption.toString() : null;
+                    String encryptedCaption = caption;
+                    if (encryptedCaption == null && !TextUtils.isEmpty(caption)) {
+                        sending = false;
+                        return;
+                    }
+                    info.caption = encryptedCaption;
                     info.entities = photoEntry.entities;
                     info.masks = photoEntry.stickers;
                     info.ttl = photoEntry.ttl;
@@ -7534,7 +7539,12 @@ public class ChatActivityEnterView extends FrameLayout implements
 
                 if (editingMessageObject.getDocument() instanceof TLRPC.TL_document) {
                     sendMessageParams.document = (TLRPC.TL_document) editingMessageObject.getDocument();
-                    sendMessageParams.caption = sendMessageParams.message;
+                    String caption = sendMessageParams.message;
+                    String encryptedCaption = encryptRgcryptTextForCaption(caption);
+                    if (encryptedCaption == null && !TextUtils.isEmpty(caption) && rgcryptEnabled && isRgcryptUiAllowed()) {
+                        return;
+                    }
+                    sendMessageParams.caption = encryptedCaption;
                     sendMessageParams.message = null;
                 } else if (editingMessageObject.messageOwner.media != null && !(editingMessageObject.messageOwner.media instanceof TLRPC.TL_messageMediaEmpty)) {
                     if (editingMessageObject.messageOwner.media.photo instanceof TLRPC.TL_photo) {
@@ -7543,7 +7553,12 @@ public class ChatActivityEnterView extends FrameLayout implements
                         sendMessageParams.location = editingMessageObject.messageOwner.media;
                     }
 
-                    sendMessageParams.caption = sendMessageParams.message;
+                    String caption = sendMessageParams.message;
+                    String encryptedCaption = encryptRgcryptTextForCaption(caption);
+                    if (encryptedCaption == null && !TextUtils.isEmpty(caption) && rgcryptEnabled && isRgcryptUiAllowed()) {
+                        return;
+                    }
+                    sendMessageParams.caption = encryptedCaption;
                     sendMessageParams.message = null;
                 }
 
@@ -7568,7 +7583,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         boolean supportsNewEntities = supportsSendingNewEntities();
         int maxLength = accountInstance.getMessagesController().maxMessageLength;
-        boolean useRgcrypt = rgcryptEnabled;
+        boolean useRgcrypt = rgcryptEnabled && isRgcryptUiAllowed();
         String rgcryptDialogScope = null;
         String rgcryptSenderId = null;
         java.util.List<RgCryptoRecipientPublic> rgcryptRecipients = null;
@@ -8659,13 +8674,18 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
         rgcryptEnabled = prefs.getBoolean(rgcryptPrefKey(), false);
+        updateRgcryptUiVisibility();
         updateRgcryptButtonState();
     }
 
     private void setRgcryptEnabled(boolean enabled) {
+        if (!isRgcryptUiAllowed()) {
+            enabled = false;
+        }
         rgcryptEnabled = enabled;
         SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
         prefs.edit().putBoolean(rgcryptPrefKey(), enabled).apply();
+        updateRgcryptUiVisibility();
         updateRgcryptButtonState();
         if (delegate != null) {
             delegate.onRgcryptStateChanged(enabled);
@@ -8676,8 +8696,27 @@ public class ChatActivityEnterView extends FrameLayout implements
         return rgcryptEnabled;
     }
 
+    private boolean isRgcryptUiAllowed() {
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+        return prefs.getBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, true);
+    }
+
     private String rgcryptPrefKey() {
         return "rgcrypt_enabled_" + currentAccount + "_" + dialog_id;
+    }
+
+    public void updateRgcryptUiVisibility() {
+        if (rgcryptButton == null) {
+            return;
+        }
+        boolean allowed = isRgcryptUiAllowed();
+        rgcryptButton.setVisibility(allowed ? VISIBLE : GONE);
+        if (!allowed && rgcryptEnabled) {
+            rgcryptEnabled = false;
+            SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+            prefs.edit().putBoolean(rgcryptPrefKey(), false).apply();
+        }
+        updateAttachLayoutParams();
     }
 
     private void updateRgcryptButtonState() {
@@ -8727,6 +8766,41 @@ public class ChatActivityEnterView extends FrameLayout implements
         return unique;
     }
 
+    private String encryptRgcryptTextForCaption(String text) {
+        if (TextUtils.isEmpty(text)) {
+            return text;
+        }
+        if (!rgcryptEnabled || !isRgcryptUiAllowed()) {
+            return text;
+        }
+        try {
+            RgCrypto.initialize();
+            long topicId = parentFragment != null && parentFragment.isTopic ? parentFragment.getTopicId() : 0;
+            long myUserId = UserConfig.getInstance(currentAccount).getClientUserId();
+            String dialogScope = RgCryptoDialogScope.fromDialogIdAndTopicId(dialog_id, topicId, myUserId);
+            String senderId = String.valueOf(myUserId);
+            java.util.List<String> peerIds = collectRgcryptPeerIds();
+            RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(getContext(), currentAccount);
+            java.util.List<RgCryptoRecipientPublic> recipients = cache.getRecipientsForPeers(peerIds);
+            com.google.crypto.tink.KeysetHandle myHpkeKeyset =
+                    RgCryptoKeysetStorage.getOrCreateHpkeKeyset(getContext(), currentAccount, null);
+            recipients.add(RgCryptoKeys.recipientFromPrivateKeyset(myHpkeKeyset));
+            recipients = dedupeRecipients(recipients);
+            com.google.crypto.tink.KeysetHandle signingKeyset =
+                    RgCryptoKeysetStorage.getOrCreateSigningKeyset(getContext(), currentAccount, null);
+            return RgCryptoTextCodec.packText(text, dialogScope, senderId, signingKeyset, recipients);
+        } catch (Exception e) {
+            FileLog.e(e);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (parentFragment != null) {
+                    AlertsCreator.showSimpleAlert(parentFragment, "RGCRYPT", "Не удалось зашифровать подпись");
+                }
+            });
+            return null;
+        }
+    }
+
+    // rgcrypt image support removed
 
     public void startMessageTransition() {
         if (moveToSendStateRunnable != null) {

@@ -7,7 +7,7 @@ public final class RgCryptoConstants {
     public static final String KEYREQ_PREFIX = "RGKEYREQ:";
     public static final String PREF_AUTO_DECRYPT = "rgcrypt_auto_decrypt";
     public static final String FILE_EXT = ".rgcrypt";
-    public static final String FILE_MIME = "application/rgcrypt";
+    public static final String FILE_MIME = "application/octet-stream";
     public static final int MAX_FILE_BYTES = 1024 * 1024;
     public static final String CONTENT_AUTHORITY_SUFFIX = ".rgcrypt";
     public static final String CONTENT_PATH = "rgcrypt";

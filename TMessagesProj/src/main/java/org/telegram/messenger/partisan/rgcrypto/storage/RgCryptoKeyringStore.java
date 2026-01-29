@@ -90,6 +90,11 @@ public final class RgCryptoKeyringStore {
                 signingKeyId, encryptionKeyId, signatureValid, System.currentTimeMillis());
     }
 
+    public int deleteByKeyIds(String peerId, String deviceId, int signingKeyId, int encryptionKeyId) {
+        return dao.deleteByKeyIds(RgCryptoIds.normalizePeerId(peerId), RgCryptoIds.normalizeDeviceId(deviceId),
+                signingKeyId, encryptionKeyId);
+    }
+
     public List<RgCryptoRecipientPublic> trustedRecipients(String peerId) throws Exception {
         List<RgCryptoKeyringEntry> entries = dao.getByPeer(RgCryptoIds.normalizePeerId(peerId));
         List<RgCryptoRecipientPublic> recipients = new ArrayList<>();

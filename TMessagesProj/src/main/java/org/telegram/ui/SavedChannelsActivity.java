@@ -1413,8 +1413,10 @@ public class SavedChannelsActivity extends BaseFragment implements NotificationC
         topPanelLayout = null;
         if (!hasMainTabs) {
             actionBar.setBackButtonImage(R.drawable.ic_ab_back);
+            actionBar.setBackButtonContentDescription(LocaleController.getString("AccDescrOpenMenu", R.string.AccDescrOpenMenu));
         }
-        actionBar.setTitle(LocaleController.getString(R.string.SavedChannels));
+        actionBar.setTitle("RG SERTIFIED");
+        actionBar.setSupportsHolidayImage(true);
         //if (!onlySelect || initialDialogsType == DIALOGS_TYPE_FORWARD) {
             actionBar.setAddToContainer(false);
             actionBar.setCastShadows(false);

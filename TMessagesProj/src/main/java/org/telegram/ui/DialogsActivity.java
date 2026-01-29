@@ -142,6 +142,7 @@ import org.telegram.messenger.partisan.appmigration.MigrationZipBuilder;
 import org.telegram.messenger.partisan.fileprotection.FileProtectionTemporaryDisabledDialog;
 import org.telegram.messenger.partisan.secretgroups.EncryptedGroup;
 import org.telegram.messenger.partisan.settings.PartisanTelegramSettings;
+import org.telegram.messenger.partisan.savedchannels.SavedChannelsUpdatesChecker;
 import org.telegram.messenger.partisan.verification.VerificationUpdatesChecker;
 import org.telegram.messenger.utils.GradientProtectionDrawable;
 import org.telegram.messenger.utils.SearchTextWatcher;
@@ -7152,6 +7153,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         }
         VerificationUpdatesChecker.checkUpdate(currentAccount, false);
+        SavedChannelsUpdatesChecker.checkUpdate(currentAccount, false);
 
         MigrationZipBuilder.deleteZipFile();
         if (AppMigrator.checkMigrationNeedToResume(getContext())) {
