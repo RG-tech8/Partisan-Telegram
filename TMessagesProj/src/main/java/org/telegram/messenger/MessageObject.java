@@ -48,6 +48,8 @@ import androidx.annotation.NonNull;
 import androidx.collection.LongSparseArray;
 import androidx.core.graphics.ColorUtils;
 
+import com.google.crypto.tink.KeysetHandle;
+
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.fakepasscode.FakePasscodeUtils;
@@ -71,6 +73,7 @@ import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCardCodec;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyRequest;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoEnvelope;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringCache;
+import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringStore;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCard;
 import org.telegram.messenger.partisan.Utils;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
@@ -215,6 +218,7 @@ public class MessageObject {
     public String rgcryptKeyCardSigningKid;
     public String rgcryptKeyCardEncryptionKid;
     public String rgcryptKeyRequestRequesterId;
+    // rgcrypt image support removed
     public CharSequence linkDescription;
     public CharSequence caption;
     public CharSequence youtubeDescription;
@@ -5922,6 +5926,8 @@ public class MessageObject {
 
         applyRgcryptDecryptResult();
     }
+
+    // rgcrypt image support removed
 
     private void applyRgcryptDecryptResult() {
         if (rgcryptDecryptResult == null) {

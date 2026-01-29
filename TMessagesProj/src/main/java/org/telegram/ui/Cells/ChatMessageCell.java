@@ -6084,6 +6084,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             this.lastInChatList = lastInChatList;
             pinnedTop = topNear;
             currentMessageObject = messageObject;
+            if (currentMessageObject != null) {
+                // manual decrypt via menu only
+            }
             currentMessagesGroup = groupedMessages;
             wasAllChats = isAllChats;
             lastTime = -2;

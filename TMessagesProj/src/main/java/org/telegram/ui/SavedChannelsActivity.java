@@ -756,11 +756,7 @@ public class SavedChannelsActivity extends BaseFragment implements NotificationC
 
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setBackButtonContentDescription(LocaleController.getString("AccDescrOpenMenu", R.string.AccDescrOpenMenu));
-        if (BuildVars.DEBUG_VERSION) {
-            actionBar.setTitle("Telegram Beta");
-        } else {
-            actionBar.setTitle(LocaleController.getString("AppName", R.string.AppName));
-        }
+        actionBar.setTitle("RG SERTIFIED");
         actionBar.setSupportsHolidayImage(true);
         actionBar.setAddToContainer(false);
         actionBar.setCastShadows(false);
@@ -2340,4 +2336,3 @@ public class SavedChannelsActivity extends BaseFragment implements NotificationC
         setSlideTransitionProgress(1f - progress);
     }
 }
-

@@ -24,6 +24,7 @@ import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -299,6 +300,7 @@ public class PartisanSettingsActivity extends BaseFragment {
                 boolean enabled = prefs.getBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, true);
                 prefs.edit().putBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, !enabled).apply();
                 ((TextCheckCell) view).setChecked(!enabled);
+                NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME);
             } else if (position == foreignAgentsRow) {
                 SharedConfig.cutForeignAgentsText = !SharedConfig.cutForeignAgentsText;
                 SharedConfig.saveConfig();

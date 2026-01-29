@@ -85,6 +85,7 @@ import android.util.Property;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 import android.util.TypedValue;
+import android.webkit.MimeTypeMap;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
@@ -187,10 +188,14 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.partisan.rgcrypto.RgCrypto;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoDialogScope;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCard;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCardCodec;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyRequest;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoRecipientPublic;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeysetStorage;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoTextCodec;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringStore;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoTrustState;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringCache;
@@ -461,6 +466,23 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    private void copyMyKeyCardToClipboard() {
+        try {
+            RgCrypto.initialize();
+            RgCryptoKeyCard card = RgCryptoKeyCard.create(
+                    RgCryptoKeysetStorage.getOrCreateSigningKeyset(getContext(), currentAccount, null),
+                    RgCryptoKeysetStorage.getOrCreateHpkeKeyset(getContext(), currentAccount, null),
+                    null
+            );
+            String payload = RgCryptoKeyCardCodec.pack(card);
+            AndroidUtilities.addToClipboard(payload);
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", "KeyCard скопирован");
+        } catch (Exception e) {
+            FileLog.e(e);
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Не удалось скопировать KeyCard");
+        }
+    }
+
     private Dialog closeChatDialog;
     private boolean showCloseChatDialogLater;
     private FrameLayout progressView;
@@ -486,6 +508,7 @@ public class ChatActivity extends BaseFragment implements
     private ActionBarMenuItem searchIconItem;
     private ActionBarMenuItem rgcryptSendKeyItem;
     private ActionBarMenuItem rgcryptResetItem;
+    private ActionBarMenuItem.Item rgcryptKeyManagerItem;
     private ActionBarMenu.LazyItem audioCallIconItem;
     private boolean searchItemVisible;
     private RadialProgressView progressBar;
@@ -1272,6 +1295,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_RGCRYPT_SHOW_FINGERPRINT = 119;
     private final static int RGCRYPT_SEND_KEY_MENU = 1200;
     private final static int RGCRYPT_RESET_KEYS_MENU = 1201;
+    private final static int RGCRYPT_KEY_MANAGER_MENU = 1202;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -3868,29 +3892,9 @@ public class ChatActivity extends BaseFragment implements
                 } else if (id == RGCRYPT_SEND_KEY_MENU) {
                     sendMyKeyCard();
                 } else if (id == RGCRYPT_RESET_KEYS_MENU) {
-                    if (getParentActivity() == null) {
-                        return;
-                    }
-                    DialogCheckBox clearImportedKeys = new DialogCheckBox(getParentActivity());
-                    clearImportedKeys.setTextAndCheck("Сбросить импортированные ключи", false);
-                    clearImportedKeys.setPadding(0, AndroidUtilities.dp(6), 0, AndroidUtilities.dp(6));
-                    new AlertDialog.Builder(getParentActivity())
-                            .setTitle("RGCRYPT")
-                            .setMessage("Сбросить ключи и сгенерировать новые? Старые сообщения больше не расшифруются.")
-                            .setView(clearImportedKeys)
-                            .setPositiveButton("Сбросить", (dialog, which) -> {
-                                boolean shouldClearImported = clearImportedKeys.isChecked();
-                                Utilities.globalQueue.postRunnable(() -> {
-                                    RgCryptoKeysetStorage.resetKeysets(getParentActivity(), currentAccount, null);
-                                    if (shouldClearImported) {
-                                        new RgCryptoKeyringStore(getParentActivity(), currentAccount).clearAll();
-                                        RgCryptoKeyringCache.get(getParentActivity(), currentAccount).clearAll();
-                                    }
-                                });
-                                AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT", "Ключи сброшены. Отправьте новый KeyCard.");
-                            })
-                            .setNegativeButton("Отмена", null)
-                            .show();
+                    showRgcryptResetKeysDialog();
+                } else if (id == RGCRYPT_KEY_MANAGER_MENU) {
+                    showRgcryptKeyManager();
                 } else if (id == OPTION_RGCRYPT_IMPORT_KEYCARD || id == OPTION_RGCRYPT_SHOW_FINGERPRINT) {
                     MessageObject messageObject = getSingleSelectedMessageObject();
                     if (messageObject != null) {
@@ -4704,6 +4708,10 @@ public class ChatActivity extends BaseFragment implements
             }
             translateItem = headerItem.lazilyAddSubItem(translate, R.drawable.msg_translate, LocaleController.getString(R.string.TranslateMessage));
             updateTranslateItemVisibility();
+            if (chatMode == MODE_DEFAULT && !isEncryptedChat()) {
+                rgcryptKeyManagerItem = headerItem.lazilyAddSubItem(RGCRYPT_KEY_MANAGER_MENU, R.drawable.msg_mini_lock3, "RGCRYPT ключи");
+                updateRgcryptActionItems();
+            }
             if (currentChat != null && !currentChat.creator && !ChatObject.hasAdminRights(currentChat)) {
                 headerItem.lazilyAddSubItem(report, R.drawable.msg_report, LocaleController.getString(R.string.ReportChat));
             }
@@ -14105,14 +14113,16 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void didSelectPhotos(ArrayList<SendMessagesHelper.SendingMediaInfo> photos, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars, Integer autoDeleteDelay) {
         fillEditingMediaWithCaption(photos.get(0).caption, photos.get(0).entities);
-        SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, true, false, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, chatMode, photos.get(0).updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), 0, false, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams(), autoDeleteDelay);
-        afterMessageSend();
-        if (scheduleDate != 0) {
-            if (scheduledMessagesCount == -1) {
-                scheduledMessagesCount = 0;
+        if (!photos.isEmpty()) {
+            SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, true, false, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, chatMode, photos.get(0).updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), 0, false, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams(), autoDeleteDelay);
+            afterMessageSend();
+            if (scheduleDate != 0) {
+                if (scheduledMessagesCount == -1) {
+                    scheduledMessagesCount = 0;
+                }
+                scheduledMessagesCount += photos.size();
+                updateScheduledInterface(true);
             }
-            scheduledMessagesCount += photos.size();
-            updateScheduledInterface(true);
         }
     }
 
@@ -14132,7 +14142,8 @@ public class ChatActivity extends BaseFragment implements
             }
         }
         if (!hasNoGifs && !TextUtils.isEmpty(photos.get(0).caption)) {
-            SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(photos.get(0).caption, dialog_id, replyingMessageObject, getThreadMessage(), null, false, photos.get(0).entities, null, null, notify, scheduleDate, 0, null, false);
+            String caption = photos.get(0).caption;
+            SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(caption, dialog_id, replyingMessageObject, getThreadMessage(), null, false, photos.get(0).entities, null, null, notify, scheduleDate, 0, null, false);
             params.quick_reply_shortcut = quickReplyShortcut;
             params.quick_reply_shortcut_id = getQuickReplyId();
             SendMessagesHelper.getInstance(currentAccount).sendMessage(params);
@@ -14149,13 +14160,20 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
         fillEditingMediaWithCaption(photos.get(0).caption, photos.get(0).entities);
-        SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, false, true, editingMessageObject, notify, scheduleDate, 0, chatMode, photos.get(0).updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), 0, false, 0, getSendMonoForumPeerId(), messageSuggestionParams);
+        ArrayList<SendMessagesHelper.SendingMediaInfo> regular = new ArrayList<>();
+        for (int a = 0; a < photos.size(); a++) {
+            SendMessagesHelper.SendingMediaInfo info = photos.get(a);
+            regular.add(info);
+        }
+        if (!regular.isEmpty()) {
+            SendMessagesHelper.prepareSendingMedia(getAccountInstance(), regular, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, false, true, editingMessageObject, notify, scheduleDate, 0, chatMode, regular.get(0).updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), 0, false, 0, getSendMonoForumPeerId(), messageSuggestionParams);
+        }
         afterMessageSend();
         if (scheduleDate != 0) {
             if (scheduledMessagesCount == -1) {
                 scheduledMessagesCount = 0;
             }
-            scheduledMessagesCount += photos.size();
+            scheduledMessagesCount += regular.size();
             updateScheduledInterface(true);
         }
     }
@@ -19205,6 +19223,16 @@ public class ChatActivity extends BaseFragment implements
                 ActionBarMenuItem shareItem = actionBar.createActionMode().getItem(share);
                 ActionBarMenuItem rgcryptImportItem = actionBar.createActionMode().getItem(OPTION_RGCRYPT_IMPORT_KEYCARD);
                 ActionBarMenuItem rgcryptFingerprintItem = actionBar.createActionMode().getItem(OPTION_RGCRYPT_SHOW_FINGERPRINT);
+                
+                boolean rgcryptUiAllowed = isRgcryptUiAllowed();
+                if (!rgcryptUiAllowed) {
+                    if (rgcryptImportItem != null) {
+                    rgcryptImportItem.setVisibility(View.GONE);
+                    }
+                    if (rgcryptFingerprintItem != null) {
+                    rgcryptFingerprintItem.setVisibility(View.GONE);
+                    }
+                    }
 
                 boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || hasSelectedNoforwardsMessage();
                 if (prevCantForwardCount == 0 && cantForwardMessagesCount != 0 || prevCantForwardCount != 0 && cantForwardMessagesCount == 0) {
@@ -19687,7 +19715,7 @@ public class ChatActivity extends BaseFragment implements
         if (forceToggleMuted) {
             isMuted = !isMuted;
         }
-        boolean rgcryptEnabled = isRgcryptEnabledForCurrentDialog();
+        boolean rgcryptEnabled = isRgcryptEnabledForCurrentDialog() && isRgcryptUiAllowed();
         Drawable rightIcon = null;
         if (!UserObject.isReplyUser(currentUser) && (!isThreadChat() || isTopic) && isMuted) {
             rightIcon = getThemedDrawable(Theme.key_drawable_muteIconDrawable);
@@ -19739,8 +19767,26 @@ public class ChatActivity extends BaseFragment implements
         return prefs.getBoolean("rgcrypt_enabled_" + currentAccount + "_" + dialog_id, false);
     }
 
+    private boolean isRgcryptUiAllowed() {
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+        return prefs.getBoolean(org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants.PREF_AUTO_DECRYPT, true);
+    }
+
     private void updateRgcryptActionItems() {
-        if (rgcryptSendKeyItem == null && rgcryptResetItem == null) {
+        if (rgcryptSendKeyItem == null && rgcryptResetItem == null && rgcryptKeyManagerItem == null) {
+            return;
+        }
+        boolean allowed = isRgcryptUiAllowed();
+        if (rgcryptSendKeyItem != null) {
+            rgcryptSendKeyItem.setVisibility(allowed ? View.VISIBLE : View.GONE);
+        }
+        if (rgcryptResetItem != null) {
+            rgcryptResetItem.setVisibility(allowed ? View.VISIBLE : View.GONE);
+        }
+        if (rgcryptKeyManagerItem != null) {
+            rgcryptKeyManagerItem.setVisibility(allowed ? View.VISIBLE : View.GONE);
+        }
+        if (!allowed) {
             return;
         }
         int colorKey = isRgcryptEnabledForCurrentDialog()
@@ -19753,6 +19799,279 @@ public class ChatActivity extends BaseFragment implements
         if (rgcryptResetItem != null && rgcryptResetItem.getIconView() != null) {
             rgcryptResetItem.getIconView().setColorFilter(filter);
         }
+        if (rgcryptKeyManagerItem != null) {
+            rgcryptKeyManagerItem.setColors(getThemedColor(Theme.key_actionBarDefaultSubmenuItem),
+                    getThemedColor(Theme.key_actionBarDefaultSubmenuItemIcon));
+        }
+    }
+
+    private void showRgcryptKeyManager() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        String[] items = new String[] {
+                "Отправить KeyCard",
+                "Скопировать мой KeyCard",
+                "Сменить мой ключ",
+                "Импортировать ключ из текста",
+                "Удалить импортированный ключ"
+        };
+        new AlertDialog.Builder(getParentActivity())
+                .setTitle("RGCRYPT")
+                .setItems(items, (dialog, which) -> {
+                    switch (which) {
+                        case 0:
+                            sendMyKeyCard();
+                            break;
+                        case 1:
+                            copyMyKeyCardToClipboard();
+                            break;
+                        case 2:
+                            showRgcryptResetKeysDialog();
+                            break;
+                        case 3:
+                            showRgcryptImportFromTextDialog();
+                            break;
+                        case 4:
+                            showRgcryptDeleteKeyDialog();
+                            break;
+                    }
+                })
+                .show();
+    }
+
+    private void showRgcryptResetKeysDialog() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        DialogCheckBox clearImportedKeys = new DialogCheckBox(getParentActivity());
+        clearImportedKeys.setTextAndCheck("Сбросить импортированные ключи", false);
+        clearImportedKeys.setPadding(0, AndroidUtilities.dp(6), 0, AndroidUtilities.dp(6));
+        new AlertDialog.Builder(getParentActivity())
+                .setTitle("RGCRYPT")
+                .setMessage("Сбросить ключи и сгенерировать новые? Старые сообщения больше не расшифруются.")
+                .setView(clearImportedKeys)
+                .setPositiveButton("Сбросить", (dialog, which) -> {
+                    boolean shouldClearImported = clearImportedKeys.isChecked();
+                    Utilities.globalQueue.postRunnable(() -> {
+                        RgCryptoKeysetStorage.resetKeysets(getParentActivity(), currentAccount, null);
+                        if (shouldClearImported) {
+                            new RgCryptoKeyringStore(getParentActivity(), currentAccount).clearAll();
+                            RgCryptoKeyringCache.get(getParentActivity(), currentAccount).clearAll();
+                        }
+                    });
+                    AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT", "Ключи сброшены. Отправьте новый KeyCard.");
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void showRgcryptImportFromTextDialog() {
+        selectRgcryptPeerId(peerId -> {
+            if (peerId == null || getParentActivity() == null) {
+                return;
+            }
+            EditText editText = new EditText(getParentActivity());
+            editText.setMinLines(4);
+            editText.setMaxLines(10);
+            editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+            editText.setHint("RGKEY:...");
+            new AlertDialog.Builder(getParentActivity())
+                    .setTitle("Импорт ключа")
+                    .setView(editText)
+                    .setPositiveButton("Импортировать", (dialog, which) -> {
+                        String rawText = editText.getText() != null ? editText.getText().toString().trim() : "";
+                        if (TextUtils.isEmpty(rawText)) {
+                            AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Пустой ключ");
+                            return;
+                        }
+                        Utilities.globalQueue.postRunnable(() -> {
+                            try {
+                                String keyCardJson = rawText;
+                                if (rawText.startsWith(org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants.KEYCARD_PREFIX)) {
+                                    RgCryptoKeyCard card = RgCryptoKeyCardCodec.unpack(rawText);
+                                    keyCardJson = card.toJson();
+                                }
+                                RgCryptoKeyringStore store = new RgCryptoKeyringStore(getParentActivity(), currentAccount);
+                                store.importKeyCard(peerId, keyCardJson, RgCryptoTrustState.UNTRUSTED, true);
+                                AndroidUtilities.runOnUIThread(() -> {
+                                    AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Ключ импортирован");
+                                    RgCryptoKeyringCache.get(getParentActivity(), currentAccount)
+                                            .refreshForPeers(Collections.singletonList(peerId));
+                                });
+                            } catch (Exception e) {
+                                FileLog.e(e);
+                                AndroidUtilities.runOnUIThread(() ->
+                                        AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Не удалось импортировать ключ"));
+                            }
+                        });
+                    })
+                    .setNegativeButton("Отмена", null)
+                    .show();
+        });
+    }
+
+    private void showRgcryptDeleteKeyDialog() {
+        selectRgcryptPeerId(peerId -> {
+            if (peerId == null || getParentActivity() == null) {
+                return;
+            }
+            Utilities.globalQueue.postRunnable(() -> {
+                RgCryptoKeyringStore store = new RgCryptoKeyringStore(getParentActivity(), currentAccount);
+                List<org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringEntry> entries = store.getByPeer(peerId);
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (entries == null || entries.isEmpty()) {
+                        AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Нет импортированных ключей");
+                        return;
+                    }
+                    CharSequence[] labels = new CharSequence[entries.size()];
+                    for (int i = 0; i < entries.size(); i++) {
+                        labels[i] = formatRgcryptKeyEntryLabel(entries.get(i));
+                    }
+                    new AlertDialog.Builder(getParentActivity())
+                            .setTitle("Удалить ключ")
+                            .setItems(labels, (dialog, which) -> {
+                                org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringEntry entry = entries.get(which);
+                                Utilities.globalQueue.postRunnable(() -> {
+                                    store.deleteByKeyIds(peerId, entry.deviceId, entry.signingKeyId, entry.encryptionKeyId);
+                                    RgCryptoKeyringCache.get(getParentActivity(), currentAccount)
+                                            .refreshForPeers(Collections.singletonList(peerId));
+                                });
+                                AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Ключ удален");
+                            })
+                            .setNegativeButton("Отмена", null)
+                            .show();
+                });
+            });
+        });
+    }
+
+    private CharSequence formatRgcryptKeyEntryLabel(org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringEntry entry) {
+        String signing = entry.signingKid != null ? entry.signingKid : String.valueOf(entry.signingKeyId);
+        String encryption = entry.encryptionKid != null ? entry.encryptionKid : String.valueOf(entry.encryptionKeyId);
+        String trust;
+        if (entry.trustState == RgCryptoTrustState.TRUSTED) {
+            trust = "trusted";
+        } else if (entry.trustState == RgCryptoTrustState.REVOKED) {
+            trust = "revoked";
+        } else {
+            trust = "untrusted";
+        }
+        return "Device: " + entry.deviceId + "\n" +
+                "Signing: " + signing + "\n" +
+                "Encryption: " + encryption + "\n" +
+                "Trust: " + trust;
+    }
+
+    private interface RgcryptPeerIdCallback {
+        void onPeerId(String peerId);
+    }
+
+    private java.util.List<RgCryptoRecipientPublic> dedupeRecipients(java.util.List<RgCryptoRecipientPublic> recipients) {
+        java.util.ArrayList<RgCryptoRecipientPublic> unique = new java.util.ArrayList<>();
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        if (recipients == null) {
+            return unique;
+        }
+        for (RgCryptoRecipientPublic recipient : recipients) {
+            if (recipient == null) {
+                continue;
+            }
+            String key = recipient.kid != null ? recipient.kid : String.valueOf(recipient.keyId);
+            if (seen.add(key)) {
+                unique.add(recipient);
+            }
+        }
+        return unique;
+    }
+
+    private java.util.List<String> collectRgcryptPeerIdsForDialogStrings() {
+        ArrayList<Long> peerIds = collectRgcryptPeerIdsForDialog();
+        java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        if (peerIds != null) {
+            for (Long peerId : peerIds) {
+                if (peerId != null && peerId != 0) {
+                    out.add(String.valueOf(peerId));
+                }
+            }
+        }
+        return out;
+    }
+
+    // rgcrypt image support removed
+    private void selectRgcryptPeerId(RgcryptPeerIdCallback callback) {
+        if (callback == null) {
+            return;
+        }
+        if (DialogObject.isUserDialog(dialog_id)) {
+            callback.onPeerId(String.valueOf(dialog_id));
+            return;
+        }
+        ArrayList<Long> peerIds = collectRgcryptPeerIdsForDialog();
+        if (peerIds == null || peerIds.isEmpty()) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Нет участников для выбора");
+            return;
+        }
+        long myId = getUserConfig().getClientUserId();
+        ArrayList<Long> filtered = new ArrayList<>();
+        for (Long peerId : peerIds) {
+            if (peerId != null && peerId != myId) {
+                filtered.add(peerId);
+            }
+        }
+        if (filtered.isEmpty()) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Нет участников для выбора");
+            return;
+        }
+        if (filtered.size() == 1) {
+            callback.onPeerId(String.valueOf(filtered.get(0)));
+            return;
+        }
+        CharSequence[] names = new CharSequence[filtered.size()];
+        for (int i = 0; i < filtered.size(); i++) {
+            long peerId = filtered.get(i);
+            names[i] = getRgcryptPeerName(peerId);
+        }
+        new AlertDialog.Builder(getParentActivity())
+                .setTitle("Выберите пользователя")
+                .setItems(names, (dialog, which) -> callback.onPeerId(String.valueOf(filtered.get(which))))
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private ArrayList<Long> collectRgcryptPeerIdsForDialog() {
+        ArrayList<Long> peerIds = new ArrayList<>();
+        if (DialogObject.isUserDialog(dialog_id)) {
+            peerIds.add(dialog_id);
+            return peerIds;
+        }
+        if (DialogObject.isChatDialog(dialog_id)) {
+            TLRPC.ChatFull chatFull = chatInfo;
+            if (chatFull != null && chatFull.participants != null && chatFull.participants.participants != null) {
+                for (int i = 0; i < chatFull.participants.participants.size(); i++) {
+                    TLRPC.ChatParticipant participant = chatFull.participants.participants.get(i);
+                    if (participant != null && participant.user_id != 0) {
+                        peerIds.add(participant.user_id);
+                    }
+                }
+            }
+        }
+        return peerIds;
+    }
+
+    private String getRgcryptPeerName(long peerId) {
+        if (peerId > 0) {
+            TLRPC.User user = getMessagesController().getUser(peerId);
+            if (user != null) {
+                return UserObject.getUserName(user);
+            }
+        } else if (peerId < 0) {
+            TLRPC.Chat chat = getMessagesController().getChat(-peerId);
+            if (chat != null) {
+                return chat.title;
+            }
+        }
+        return String.valueOf(peerId);
     }
 
     public void checkAndUpdateAvatar() {
@@ -21790,6 +22109,9 @@ public class ChatActivity extends BaseFragment implements
             }
         } else if (id == NotificationCenter.updateInterfaces) {
             int updateMask = (Integer) args[0];
+            if (chatActivityEnterView != null) {
+                chatActivityEnterView.updateRgcryptUiVisibility();
+            }
             if ((updateMask & MessagesController.UPDATE_MASK_NAME) != 0 || (updateMask & MessagesController.UPDATE_MASK_CHAT_NAME) != 0 || (updateMask & MessagesController.UPDATE_MASK_EMOJI_STATUS) != 0) {
                 if (currentChat != null) {
                     TLRPC.Chat chat = getMessagesController().getChat(currentChat.id);
@@ -21813,6 +22135,9 @@ public class ChatActivity extends BaseFragment implements
             }
             if ((updateMask & MessagesController.UPDATE_MASK_AVATAR) != 0 || (updateMask & MessagesController.UPDATE_MASK_CHAT_AVATAR) != 0 || (updateMask & MessagesController.UPDATE_MASK_NAME) != 0) {
                 checkAndUpdateAvatar();
+                updateVisibleRows();
+            }
+            if ((updateMask & MessagesController.UPDATE_MASK_MESSAGE_TEXT) != 0) {
                 updateVisibleRows();
             }
             if ((updateMask & MessagesController.UPDATE_MASK_USER_PRINT) != 0) {
@@ -24662,56 +24987,7 @@ public class ChatActivity extends BaseFragment implements
     private Pattern sponsoredUrlPattern;
     private MessageObject botSponsoredMessage;
     private void addSponsoredMessages(boolean animated) {
-        if (sponsoredMessagesAdded || chatMode != 0 || !ChatObject.isChannel(currentChat) && !UserObject.isBot(currentUser) || !forwardEndReachedForAll(0) || getUserConfig().isPremium() && getMessagesController().isSponsoredDisabled() || isReport()) {
-            return;
-        }
-        MessagesController.SponsoredMessagesInfo res = getMessagesController().getSponsoredMessages(dialog_id);
-        if (res == null || res.messages == null) {
-            return;
-        }
-        for (int i = 0; i < res.messages.size(); i++) {
-            MessageObject messageObject = res.messages.get(i);
-            messageObject.resetLayout();
-            if (messageObject.sponsoredUrl != null) {
-                try {
-                    if (sponsoredUrlPattern == null) {
-                        sponsoredUrlPattern = Pattern.compile("https://t\\.me/(\\w+)(?:/(\\d+))?");
-                    }
-                    Matcher matcher = sponsoredUrlPattern.matcher(messageObject.sponsoredUrl);
-                    if (matcher.matches()) {
-                        String username = matcher.group(1);
-                        int postId = 0;
-                        try {
-                            postId = matcher.groupCount() >= 2 ? Integer.parseInt(matcher.group(2)) : 0;
-                        } catch (Exception e2) {}
-                        TLObject obj = getMessagesController().getUserOrChat(username);
-                        long did;
-                        if (obj instanceof TLRPC.User) {
-                            did = ((TLRPC.User) obj).id;
-                        } else if (obj instanceof TLRPC.Chat) {
-                            did = -((TLRPC.Chat) obj).id;
-                        } else {
-                            continue;
-                        }
-                        if (postId < 0) continue;
-                        getMessagesController().ensureMessagesLoaded(did, postId, null);
-                    }
-                } catch (Exception e) {
-                    FileLog.e(e, false);
-                }
-            }
-        }
-        sponsoredMessagesAdded = true;
-        if (UserObject.isBot(currentUser)) {
-            botSponsoredMessage = res == null || res.messages == null || res.messages.isEmpty() ? null : res.messages.get(0);
-            updateTopPanel(true);
-        } else {
-            sponsoredMessagesPostsBetween = res.posts_between != null ? res.posts_between : 0;
-            if (notPushedSponsoredMessages != null) {
-                notPushedSponsoredMessages.clear();
-            }
-            processNewMessages(res.messages, false);
-        }
+        // Partisan: disable sponsored messages entirely.
     }
 
     public void removeFromSponsored(MessageObject message) {
@@ -35312,6 +35588,8 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
 
+        // rgcrypt image support removed
+
         animatorRoundMessageCameraVisibility.setValue(false, true);
 
         if (editingMessageObject != null && editingMessageObject.needResendWhenEdit() && !ChatObject.canManageMonoForum(currentAccount, editingMessageObject.getDialogId())) {
@@ -35331,27 +35609,28 @@ public class ChatActivity extends BaseFragment implements
             }, 3000);
         }
         fillEditingMediaWithCaption(photoEntry.caption, photoEntry.entities);
+        final boolean finalForceDocument = forceDocument;
         AlertsCreator.ensurePaidMessageConfirmation(currentAccount, getDialogId(), 1, payStars -> {
             if (editingMessageObject != null && editingMessageObject.needResendWhenEdit()) {
                 MessageSuggestionParams params = messageSuggestionParams != null ?
                     messageSuggestionParams : MessageSuggestionParams.of(editingMessageObject.messageOwner.suggested_post);
                 if (photoEntry.isVideo) {
-                    SendMessagesHelper.prepareSendingVideo(getAccountInstance(), photoEntry.path, videoEditedInfo, photoEntry.coverPath, photoEntry.coverPhoto, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.ttl, null, notify, scheduleDate, scheduleRepeatPeriod, forceDocument, photoEntry.hasSpoiler, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
+                    SendMessagesHelper.prepareSendingVideo(getAccountInstance(), photoEntry.path, videoEditedInfo, photoEntry.coverPath, photoEntry.coverPhoto, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.ttl, null, notify, scheduleDate, scheduleRepeatPeriod, finalForceDocument, photoEntry.hasSpoiler, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
                 } else {
                     if (photoEntry.imagePath != null) {
-                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.imagePath, photoEntry.thumbPath, null, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, null, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
+                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.imagePath, photoEntry.thumbPath, null, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, null, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, finalForceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
                     } else if (photoEntry.path != null) {
-                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.path, photoEntry.thumbPath, null, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, null, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
+                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.path, photoEntry.thumbPath, null, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, null, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, finalForceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
                     }
                 }
             } else {
                 if (photoEntry.isVideo) {
-                    SendMessagesHelper.prepareSendingVideo(getAccountInstance(), photoEntry.path, videoEditedInfo, photoEntry.coverPath, photoEntry.coverPhoto, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.ttl, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, forceDocument, photoEntry.hasSpoiler, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                    SendMessagesHelper.prepareSendingVideo(getAccountInstance(), photoEntry.path, videoEditedInfo, photoEntry.coverPath, photoEntry.coverPhoto, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.ttl, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, finalForceDocument, photoEntry.hasSpoiler, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                 } else {
                     if (photoEntry.imagePath != null) {
-                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.imagePath, photoEntry.thumbPath, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, editingMessageObject, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.imagePath, photoEntry.thumbPath, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, editingMessageObject, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, finalForceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                     } else if (photoEntry.path != null) {
-                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.path, photoEntry.thumbPath, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, editingMessageObject, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.path, photoEntry.thumbPath, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, editingMessageObject, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, finalForceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                     }
                 }
             }
@@ -45085,28 +45364,32 @@ public class ChatActivity extends BaseFragment implements
                 items.add(LocaleController.getString(R.string.Copy));
                 options.add(OPTION_COPY);
                 icons.add(R.drawable.msg_copy);
-                if (selectedObject.rgcryptOriginalText != null) {
-                    items.add("Копировать оригинал");
-                    options.add(OPTION_COPY_ORIGINAL);
-                    icons.add(R.drawable.msg_copy);
+                if (isRgcryptUiAllowed()) {
+                    if (selectedObject.rgcryptOriginalText != null) {
+                        items.add("Копировать оригинал");
+                        options.add(OPTION_COPY_ORIGINAL);
+                        icons.add(R.drawable.msg_copy);
+                    }
                 }
-                if (selectedObject.rgcryptDecryptResult != null && selectedObject.rgcryptDecryptResult.status == org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.NEED_KEY) {
-                    items.add("Попросить ключ");
-                    options.add(OPTION_RGCRYPT_REQUEST_KEY);
-                    icons.add(R.drawable.msg_mini_lock3);
-                }
-                if (selectedObject.rgcryptKeyRequestRequesterId != null) {
-                    items.add("Отправить мой ключ");
-                    options.add(OPTION_RGCRYPT_SEND_KEY);
-                    icons.add(R.drawable.msg_mini_lock3);
-                }
-                if (selectedObject.rgcryptKeyCardJson != null) {
-                    items.add("Импортировать ключ");
-                    options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
-                    icons.add(R.drawable.msg_mini_lock3);
-                    items.add("Показать отпечаток");
-                    options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
-                    icons.add(R.drawable.msg_mini_lock3);
+                if (isRgcryptUiAllowed()) {
+                    if (selectedObject.rgcryptDecryptResult != null && selectedObject.rgcryptDecryptResult.status == org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.NEED_KEY) {
+                        items.add("Попросить ключ");
+                        options.add(OPTION_RGCRYPT_REQUEST_KEY);
+                        icons.add(R.drawable.msg_mini_lock3);
+                    }
+                    if (selectedObject.rgcryptKeyRequestRequesterId != null) {
+                        items.add("Отправить мой ключ");
+                        options.add(OPTION_RGCRYPT_SEND_KEY);
+                        icons.add(R.drawable.msg_mini_lock3);
+                    }
+                    if (selectedObject.rgcryptKeyCardJson != null) {
+                        items.add("Импортировать ключ");
+                        options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
+                        icons.add(R.drawable.msg_mini_lock3);
+                        items.add("Показать отпечаток");
+                        options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
+                        icons.add(R.drawable.msg_mini_lock3);
+                    }
                 }
             }
             items.add(LocaleController.getString(R.string.CancelSending));
@@ -45196,28 +45479,32 @@ public class ChatActivity extends BaseFragment implements
                 items.add(LocaleController.getString(R.string.Copy));
                 options.add(OPTION_COPY);
                 icons.add(R.drawable.msg_copy);
-                if (selectedObject.rgcryptOriginalText != null) {
-                    items.add("Копировать оригинал");
-                    options.add(OPTION_COPY_ORIGINAL);
-                    icons.add(R.drawable.msg_copy);
+                if (isRgcryptUiAllowed()) {
+                    if (selectedObject.rgcryptOriginalText != null) {
+                        items.add("Копировать оригинал");
+                        options.add(OPTION_COPY_ORIGINAL);
+                        icons.add(R.drawable.msg_copy);
+                    }
                 }
-                if (selectedObject.rgcryptDecryptResult != null && selectedObject.rgcryptDecryptResult.status == org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.NEED_KEY) {
-                    items.add("Попросить ключ");
-                    options.add(OPTION_RGCRYPT_REQUEST_KEY);
-                    icons.add(R.drawable.msg_mini_lock3);
-                }
-                if (selectedObject.rgcryptKeyRequestRequesterId != null) {
-                    items.add("Отправить мой ключ");
-                    options.add(OPTION_RGCRYPT_SEND_KEY);
-                    icons.add(R.drawable.msg_mini_lock3);
-                }
-                if (selectedObject.rgcryptKeyCardJson != null) {
-                    items.add("Импортировать ключ");
-                    options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
-                    icons.add(R.drawable.msg_mini_lock3);
-                    items.add("Показать отпечаток");
-                    options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
-                    icons.add(R.drawable.msg_mini_lock3);
+                if (isRgcryptUiAllowed()) {
+                    if (selectedObject.rgcryptDecryptResult != null && selectedObject.rgcryptDecryptResult.status == org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.NEED_KEY) {
+                        items.add("Попросить ключ");
+                        options.add(OPTION_RGCRYPT_REQUEST_KEY);
+                        icons.add(R.drawable.msg_mini_lock3);
+                    }
+                    if (selectedObject.rgcryptKeyRequestRequesterId != null) {
+                        items.add("Отправить мой ключ");
+                        options.add(OPTION_RGCRYPT_SEND_KEY);
+                        icons.add(R.drawable.msg_mini_lock3);
+                    }
+                    if (selectedObject.rgcryptKeyCardJson != null) {
+                        items.add("Импортировать ключ");
+                        options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
+                        icons.add(R.drawable.msg_mini_lock3);
+                        items.add("Показать отпечаток");
+                        options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
+                        icons.add(R.drawable.msg_mini_lock3);
+                    }
                 }
             }
             items.add(LocaleController.getString(chatMode == MODE_SAVED && threadMessageId != getUserConfig().getClientUserId() ? R.string.Remove : R.string.Delete));
@@ -45250,28 +45537,32 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.Copy));
                     options.add(OPTION_COPY);
                     icons.add(R.drawable.msg_copy);
-                    if (selectedObject.rgcryptOriginalText != null) {
-                        items.add("Копировать оригинал");
-                        options.add(OPTION_COPY_ORIGINAL);
-                        icons.add(R.drawable.msg_copy);
+                    if (isRgcryptUiAllowed()) {
+                        if (selectedObject.rgcryptOriginalText != null) {
+                            items.add("Копировать оригинал");
+                            options.add(OPTION_COPY_ORIGINAL);
+                            icons.add(R.drawable.msg_copy);
+                        }
                     }
+                if (isRgcryptUiAllowed()) {
                     if (selectedObject.rgcryptDecryptResult != null && selectedObject.rgcryptDecryptResult.status == org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.NEED_KEY) {
                         items.add("Попросить ключ");
                         options.add(OPTION_RGCRYPT_REQUEST_KEY);
-                    icons.add(R.drawable.msg_mini_lock3);
+                        icons.add(R.drawable.msg_mini_lock3);
                     }
                     if (selectedObject.rgcryptKeyRequestRequesterId != null) {
                         items.add("Отправить мой ключ");
                         options.add(OPTION_RGCRYPT_SEND_KEY);
-                    icons.add(R.drawable.msg_mini_lock3);
+                        icons.add(R.drawable.msg_mini_lock3);
                     }
-                    if (selectedObject.rgcryptKeyCardJson != null) {
-                        items.add("Импортировать ключ");
-                        options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
-                    icons.add(R.drawable.msg_mini_lock3);
-                        items.add("Показать отпечаток");
-                        options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
-                    icons.add(R.drawable.msg_mini_lock3);
+                        if (selectedObject.rgcryptKeyCardJson != null) {
+                            items.add("Импортировать ключ");
+                            options.add(OPTION_RGCRYPT_IMPORT_KEYCARD);
+                            icons.add(R.drawable.msg_mini_lock3);
+                            items.add("Показать отпечаток");
+                            options.add(OPTION_RGCRYPT_SHOW_FINGERPRINT);
+                            icons.add(R.drawable.msg_mini_lock3);
+                        }
                     }
                 }
                 if (!isThreadChat() && chatMode != MODE_SCHEDULED && currentChat != null && primaryMessage != null && (currentChat.has_link || primaryMessage.hasReplies()) && currentChat.megagroup && primaryMessage.canViewThread()) {

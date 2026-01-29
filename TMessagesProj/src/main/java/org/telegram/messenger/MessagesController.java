@@ -20749,6 +20749,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public SponsoredMessagesInfo getSponsoredMessages(long dialogId) {
+        // Partisan: disable sponsored messages entirely.
+        return null;
+/*
         SponsoredMessagesInfo info = sponsoredMessages.get(dialogId);
         if (info != null && (info.loading || Math.abs(SystemClock.elapsedRealtime() - info.loadTime) <= 5 * 60 * 1000)) {
             return info;
@@ -20845,6 +20848,7 @@ public class MessagesController extends BaseController implements NotificationCe
             });
         });
         return null;
+*/
     }
 
     public void clearSendAsPeers() {

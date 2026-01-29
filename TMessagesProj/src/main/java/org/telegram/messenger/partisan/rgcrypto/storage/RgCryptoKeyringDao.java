@@ -36,6 +36,9 @@ public interface RgCryptoKeyringDao {
     @Query("UPDATE rgcrypto_keyring SET trust_state = :trustState, updated_at = :updatedAt WHERE peer_id = :peerId AND device_id = :deviceId AND NOT (signing_kid = :signingKid AND encryption_kid = :encryptionKid)")
     int revokeOtherDeviceKeys(String peerId, String deviceId, String signingKid, String encryptionKid, int trustState, long updatedAt);
 
+    @Query("DELETE FROM rgcrypto_keyring WHERE peer_id = :peerId AND device_id = :deviceId AND signing_key_id = :signingKeyId AND encryption_key_id = :encryptionKeyId")
+    int deleteByKeyIds(String peerId, String deviceId, int signingKeyId, int encryptionKeyId);
+
     @Query("DELETE FROM rgcrypto_keyring")
     void clearAll();
 }

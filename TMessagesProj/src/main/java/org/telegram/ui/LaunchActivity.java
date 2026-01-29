@@ -149,6 +149,7 @@ import org.telegram.messenger.partisan.appmigration.MaskedMigratorHelper;
 import org.telegram.messenger.partisan.fileprotection.FileProtectionPostRestartCleaner;
 import org.telegram.messenger.partisan.secretgroups.EncryptedGroup;
 import org.telegram.messenger.partisan.secretgroups.EncryptedGroupUtils;
+import org.telegram.messenger.partisan.savedchannels.SavedChannelsUpdatesChecker;
 import org.telegram.messenger.partisan.update.UpdateChecker;
 import org.telegram.messenger.partisan.update.UpdateData;
 import org.telegram.messenger.partisan.verification.VerificationUpdatesChecker;
@@ -7424,6 +7425,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         }
         checkAppUpdate(false, null);
         VerificationUpdatesChecker.checkUpdate(currentAccount, false);
+        SavedChannelsUpdatesChecker.checkUpdate(currentAccount, false);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             ApplicationLoader.canDrawOverlays = Settings.canDrawOverlays(this);

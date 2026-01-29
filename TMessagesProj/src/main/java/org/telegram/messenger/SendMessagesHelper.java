@@ -8364,6 +8364,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                     case "flac":
                         document.mime_type = "audio/flac";
                         break;
+                    case "rgcrypt":
+                        document.mime_type = org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants.FILE_MIME;
+                        break;
                     default:
                         String mimeType = myMime.getMimeTypeFromExtension(extL);
                         if (mimeType != null) {

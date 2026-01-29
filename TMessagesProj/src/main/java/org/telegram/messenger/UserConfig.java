@@ -113,7 +113,7 @@ public class UserConfig extends BaseController {
 
     public Map<String, ChatInfoOverride> chatInfoOverrides = new HashMap<>();
 
-    public String defaultChannels = "cpartisans_security";
+    public String defaultChannels = "testchannelforsomebots";
     public Set<String> savedChannels = new HashSet<>();
     public List<String> pinnedSavedChannels = new ArrayList<>();
 
