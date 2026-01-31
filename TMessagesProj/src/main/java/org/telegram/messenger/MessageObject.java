@@ -5853,7 +5853,8 @@ public class MessageObject {
             return;
         }
         SharedPreferences rgcryptPrefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
-        boolean autoDecrypt = rgcryptPrefs.getBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, true);
+        boolean autoDecrypt = rgcryptPrefs.getBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, true)
+                && !FakePasscodeUtils.isFakePasscodeActivated();
         String raw = messageOwner.message != null ? messageOwner.message : "";
         String normalized = extractPrefixPayload(raw, RgCryptoConstants.KEYREQ_PREFIX);
         if (normalized != null) {

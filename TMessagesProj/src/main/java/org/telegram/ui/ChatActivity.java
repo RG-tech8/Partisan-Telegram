@@ -19814,7 +19814,8 @@ public class ChatActivity extends BaseFragment implements
                 "Скопировать мой KeyCard",
                 "Сменить мой ключ",
                 "Импортировать ключ из текста",
-                "Удалить импортированный ключ"
+                "Удалить импортированный ключ",
+                "Очистить расшифровку"
         };
         new AlertDialog.Builder(getParentActivity())
                 .setTitle("RGCRYPT")
@@ -19835,9 +19836,44 @@ public class ChatActivity extends BaseFragment implements
                         case 4:
                             showRgcryptDeleteKeyDialog();
                             break;
+                        case 5:
+                            clearRgcryptDecryptedMessages();
+                            break;
                     }
                 })
                 .show();
+    }
+
+    private void clearRgcryptDecryptedMessages() {
+        if (chatAdapter == null) {
+            return;
+        }
+        ArrayList<MessageObject> list = chatAdapter.getMessages();
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        int cleared = 0;
+        for (int i = 0; i < list.size(); i++) {
+            MessageObject messageObject = list.get(i);
+            if (messageObject == null || messageObject.rgcryptDecryptResult == null) {
+                continue;
+            }
+            if (messageObject.rgcryptDecryptResult.status != org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.OK) {
+                continue;
+            }
+            if (messageObject.rgcryptOriginalText == null) {
+                continue;
+            }
+            messageObject.rgcryptDecryptResult = null;
+            messageObject.messageText = messageObject.rgcryptOriginalText;
+            messageObject.forceUpdate = true;
+            cleared++;
+        }
+        if (cleared > 0 && chatAdapter != null) {
+            chatAdapter.notifyDataSetChanged(false);
+        }
+        AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT",
+                cleared > 0 ? ("Расшифровка очищена (" + cleared + ")") : "Нет расшифрованных сообщений");
     }
 
     private void showRgcryptResetKeysDialog() {

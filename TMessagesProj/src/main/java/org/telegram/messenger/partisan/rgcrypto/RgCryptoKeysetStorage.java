@@ -17,7 +17,7 @@ public final class RgCryptoKeysetStorage {
 
     public static KeysetHandle getOrCreateSigningKeyset(Context context, int account, String deviceId)
             throws GeneralSecurityException, IOException {
-        String keysetName = keysetName("signing", account, deviceId);
+        String keysetName = keysetName(context, "signing", account, deviceId);
         return new AndroidKeysetManager.Builder()
                 .withSharedPref(context.getApplicationContext(), keysetName, PREF_FILE)
                 .withKeyTemplate(RgCryptoKeys.ed25519KeyTemplate())
@@ -28,7 +28,7 @@ public final class RgCryptoKeysetStorage {
 
     public static KeysetHandle getOrCreateHpkeKeyset(Context context, int account, String deviceId)
             throws GeneralSecurityException, IOException {
-        String keysetName = keysetName("hpke", account, deviceId);
+        String keysetName = keysetName(context, "hpke", account, deviceId);
         return new AndroidKeysetManager.Builder()
                 .withSharedPref(context.getApplicationContext(), keysetName, PREF_FILE)
                 .withKeyTemplate(RgCryptoKeys.hpkeKeyTemplate())
@@ -38,8 +38,8 @@ public final class RgCryptoKeysetStorage {
     }
 
     public static void resetKeysets(Context context, int account, String deviceId) {
-        String signingKey = keysetName("signing", account, deviceId);
-        String hpkeKey = keysetName("hpke", account, deviceId);
+        String signingKey = keysetName(context, "signing", account, deviceId);
+        String hpkeKey = keysetName(context, "hpke", account, deviceId);
         context.getApplicationContext()
                 .getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
                 .edit()
@@ -48,8 +48,9 @@ public final class RgCryptoKeysetStorage {
                 .apply();
     }
 
-    private static String keysetName(String kind, int account, String deviceId) {
+    private static String keysetName(Context context, String kind, int account, String deviceId) {
         String safeDeviceId = deviceId == null ? "default" : deviceId;
-        return "rgcrypto_" + kind + "_" + account + "_" + safeDeviceId;
+        String storageId = RgCryptoStorageId.getStorageId(context, account);
+        return "rgcrypto_" + kind + "_" + storageId + "_" + safeDeviceId;
     }
 }
