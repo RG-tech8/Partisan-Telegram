@@ -10,6 +10,8 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoStorageId;
+
 @Database(entities = {RgCryptoKeyringEntry.class}, version = 3, exportSchema = false)
 public abstract class RgCryptoKeyringDatabase extends RoomDatabase {
     private static final Object LOCK = new Object();
@@ -29,10 +31,15 @@ public abstract class RgCryptoKeyringDatabase extends RoomDatabase {
     }
 
     private static RgCryptoKeyringDatabase buildDatabase(Context context, int account) {
-        String dbName = "rgcrypto_keyring_" + account + ".db";
+        String dbName = dbName(context, account);
         return Room.databaseBuilder(context, RgCryptoKeyringDatabase.class, dbName)
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build();
+    }
+
+    private static String dbName(Context context, int account) {
+        String storageId = RgCryptoStorageId.getStorageId(context, account);
+        return "rgcrypto_keyring_" + storageId + ".db";
     }
 
     public static final Migration MIGRATION_1_2 = new Migration(1, 2) {
