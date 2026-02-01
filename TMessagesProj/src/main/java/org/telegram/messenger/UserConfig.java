@@ -29,6 +29,7 @@ import org.telegram.tgnet.tl.TL_account;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -113,7 +114,10 @@ public class UserConfig extends BaseController {
 
     public Map<String, ChatInfoOverride> chatInfoOverrides = new HashMap<>();
 
-    public String defaultChannels = "testchannelforsomebots";
+    public static final String DEFAULT_SAVED_CHANNELS = "russian_grin";
+    public static final String DEFAULT_SAVED_CHANNELS_REPO = "testchannelforsomebots";
+
+    public String defaultChannels = DEFAULT_SAVED_CHANNELS;
     public Set<String> savedChannels = new HashSet<>();
     public List<String> pinnedSavedChannels = new ArrayList<>();
 
@@ -490,6 +494,18 @@ public class UserConfig extends BaseController {
             String pinnedSavedChannelsStr = preferences.getString("pinnedSavedChannels", defaultChannels);
             pinnedSavedChannels = new ArrayList<>(Arrays.asList(pinnedSavedChannelsStr.split(",")));
             pinnedSavedChannels.remove("");
+            boolean onlyRepoSaved = savedChannels.size() == 1 && containsSavedChannelsRepo(savedChannels);
+            boolean onlyRepoPinned = pinnedSavedChannels.size() == 1 && containsSavedChannelsRepo(pinnedSavedChannels);
+            removeSavedChannelsRepo();
+            if (onlyRepoSaved) {
+                savedChannels.addAll(Arrays.asList(defaultChannels.split(",")));
+                savedChannels.remove("");
+            }
+            if (onlyRepoPinned) {
+                pinnedSavedChannels.clear();
+                pinnedSavedChannels.addAll(Arrays.asList(defaultChannels.split(",")));
+                pinnedSavedChannels.remove("");
+            }
             registeredForPush = preferences.getBoolean("registeredForPush", false);
             lastSendMessageId = preferences.getInt("lastSendMessageId", -210000);
             contactsSavedCount = preferences.getInt("contactsSavedCount", 0);
@@ -664,6 +680,7 @@ public class UserConfig extends BaseController {
         chatInfoOverrides.clear();
         savedChannels = new HashSet<>(Arrays.asList(defaultChannels.split(",")));
         pinnedSavedChannels = new ArrayList<>(Arrays.asList(defaultChannels.split(",")));
+        removeSavedChannelsRepo();
         currentSecurityIssues = new HashSet<>();
         ignoredSecurityIssues = new HashSet<>();
         showSecuritySuggestions = false;
@@ -800,22 +817,59 @@ public class UserConfig extends BaseController {
     }
 
     public boolean saveChannel(TLRPC.Chat chat) {
-        if (chat == null) {
+        String username = getChannelUsername(chat);
+        if (username == null || isSavedChannelsRepo(username)) {
             return false;
         }
-        String username = chat.username != null
-                ? chat.username
-                : chat.usernames.stream().filter(u -> u.active).map(u -> u.username).findAny().orElse(null);
-        if (username != null) {
-            savedChannels.add(username);
-            return true;
+        savedChannels.add(username);
+        return true;
+    }
+
+    public boolean isChannelSavingAllowed(TLRPC.Chat chat) {
+        String username = getChannelUsername(chat);
+        return !FakePasscodeUtils.isFakePasscodeActivated() && chat != null && SharedConfig.showSavedChannels &&
+                !isChannelSaved(chat) && username != null && !isSavedChannelsRepo(username);
+    }
+
+    private String getChannelUsername(TLRPC.Chat chat) {
+        if (chat == null) {
+            return null;
+        }
+        if (chat.username != null) {
+            return chat.username;
+        }
+        if (chat.usernames != null && !chat.usernames.isEmpty()) {
+            return chat.usernames.stream().filter(u -> u.active).map(u -> u.username).findAny().orElse(null);
+        }
+        return null;
+    }
+
+    private boolean isSavedChannelsRepo(String username) {
+        return username != null && username.equalsIgnoreCase(DEFAULT_SAVED_CHANNELS_REPO);
+    }
+
+    private boolean containsSavedChannelsRepo(Collection<String> values) {
+        if (values == null) {
+            return false;
+        }
+        for (String value : values) {
+            if (isSavedChannelsRepo(value)) {
+                return true;
+            }
         }
         return false;
     }
 
-    public boolean isChannelSavingAllowed(TLRPC.Chat chat) {
-        return !FakePasscodeUtils.isFakePasscodeActivated() && chat != null && SharedConfig.showSavedChannels &&
-                !isChannelSaved(chat) && (chat.username != null || chat.usernames != null && !chat.usernames.isEmpty());
+    private static void removeSavedChannelByName(Collection<String> values, String name) {
+        if (values == null || name == null || name.isEmpty()) {
+            return;
+        }
+        values.removeIf(value -> value != null && value.equalsIgnoreCase(name));
+    }
+
+    private void removeSavedChannelsRepo() {
+        removeSavedChannelByName(savedChannels, DEFAULT_SAVED_CHANNELS_REPO);
+        removeSavedChannelByName(pinnedSavedChannels, DEFAULT_SAVED_CHANNELS_REPO);
     }
 
     public boolean isChannelSaved(TLRPC.Chat chat) {

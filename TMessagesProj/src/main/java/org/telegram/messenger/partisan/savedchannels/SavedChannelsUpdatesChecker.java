@@ -90,11 +90,17 @@ public class SavedChannelsUpdatesChecker extends AbstractChannelChecker {
                 continue;
             }
             for (String username : result.toAdd) {
+                if (isRepoUsername(username)) {
+                    continue;
+                }
                 if (config.savedChannels.add(username)) {
                     changed = true;
                 }
             }
             for (String username : result.toRemove) {
+                if (isRepoUsername(username)) {
+                    continue;
+                }
                 if (config.savedChannels.remove(username)) {
                     changed = true;
                 }
@@ -110,6 +116,10 @@ public class SavedChannelsUpdatesChecker extends AbstractChannelChecker {
             config.saveConfig(true);
             NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.savedChannelsButtonStateChanged);
         }
+    }
+
+    private static boolean isRepoUsername(String username) {
+        return username != null && username.equalsIgnoreCase(UserConfig.DEFAULT_SAVED_CHANNELS_REPO);
     }
 
     @Override
@@ -186,16 +196,8 @@ public class SavedChannelsUpdatesChecker extends AbstractChannelChecker {
         }
 
         private static String defaultChannelUsername(int account) {
-            String defaults = UserConfig.getInstance(account).defaultChannels;
-            if (defaults == null || defaults.isEmpty()) {
-                return "testchannelforsomebots";
-            }
-            String[] parts = defaults.split(",");
-            if (parts.length == 0) {
-                return "testchannelforsomebots";
-            }
-            String value = parts[0].trim();
-            return value.isEmpty() ? "testchannelforsomebots" : value;
+            String repo = UserConfig.DEFAULT_SAVED_CHANNELS_REPO;
+            return repo == null || repo.isEmpty() ? "testchannelforsomebots" : repo;
         }
     }
 }
