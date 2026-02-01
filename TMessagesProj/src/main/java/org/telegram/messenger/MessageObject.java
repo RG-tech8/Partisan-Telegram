@@ -75,7 +75,6 @@ import org.telegram.messenger.partisan.rgcrypto.RgCryptoEnvelope;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringCache;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringStore;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCard;
-import org.telegram.messenger.partisan.rgcrypto.RgCryptoReplayCache;
 import org.telegram.messenger.partisan.Utils;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
 import org.telegram.messenger.utils.tlutils.TlUtils;
@@ -5975,11 +5974,7 @@ public class MessageObject {
         }
         switch (rgcryptDecryptResult.status) {
             case OK:
-                if (rgcryptDecryptResult.replayed) {
-                    messageText = "⚠️ Повтор сообщения\n" + rgcryptDecryptResult.plaintext;
-                } else {
-                    messageText = rgcryptDecryptResult.plaintext;
-                }
+                messageText = rgcryptDecryptResult.plaintext;
                 break;
             case NEED_KEY: {
                 String kid = rgcryptDecryptResult.missingKid != null ? rgcryptDecryptResult.missingKid : "?";
@@ -6041,22 +6036,6 @@ public class MessageObject {
             );
             if (rgcryptDecryptResult != null && rgcryptDecryptResult.status == RgCryptoDecryptResult.Status.OK) {
                 rgcryptAutoDecrypted = true;
-            }
-            if (rgcryptDecryptResult != null
-                    && rgcryptDecryptResult.status == RgCryptoDecryptResult.Status.OK
-                    && envelope != null) {
-                String senderPart = envelope.senderId != null ? envelope.senderId : envelope.senderSigningKid;
-                String replayToken = envelope.msgNonce != null ? ("n:" + envelope.msgNonce) :
-                        (envelope.ciphertextSha256 != null ? ("h:" + envelope.ciphertextSha256) : null);
-                if (senderPart != null && replayToken != null) {
-                    String replayKey = (scope != null ? scope : "") + "|" + senderPart + "|" + replayToken;
-                    rgcryptDecryptResult.replayed = RgCryptoReplayCache.markSeen(
-                            ApplicationLoader.applicationContext,
-                            currentAccount,
-                            replayKey,
-                            messageOwner.id
-                    );
-                }
             }
         } catch (Exception e) {
             rgcryptDecryptResult = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, null,

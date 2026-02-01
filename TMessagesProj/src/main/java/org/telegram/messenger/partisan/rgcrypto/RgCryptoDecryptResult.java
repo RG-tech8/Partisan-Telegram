@@ -21,7 +21,6 @@ public final class RgCryptoDecryptResult {
     public String senderId;
     public SignatureState signatureState;
     public String missingKid;
-    public boolean replayed;
 
     public static RgCryptoDecryptResult ok(String plaintext, String senderId, SignatureState signatureState) {
         RgCryptoDecryptResult result = new RgCryptoDecryptResult();
