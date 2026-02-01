@@ -3576,12 +3576,24 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         if (count > 1) {
             parentAlert.selectedMenuItem.showSubItem(preview_gap);
             parentAlert.selectedMenuItem.showSubItem(preview);
-            compressItem.setText(LocaleController.getString(R.string.SendAsFiles));
+            if (isRgcryptMediaEnabled()) {
+                compressItem.setText(LocaleController.getString(R.string.SendWithRgcrypt));
+                compressItem.setIcon(R.drawable.msg_mini_lock3);
+            } else {
+                compressItem.setText(LocaleController.getString(R.string.SendAsFiles));
+                compressItem.setIcon(R.drawable.msg_filehq);
+            }
         } else {
             parentAlert.selectedMenuItem.hideSubItem(preview_gap);
             parentAlert.selectedMenuItem.hideSubItem(preview);
             if (count != 0) {
-                compressItem.setText(LocaleController.getString(R.string.SendAsFile));
+                if (isRgcryptMediaEnabled()) {
+                    compressItem.setText(LocaleController.getString(R.string.SendWithRgcrypt));
+                    compressItem.setIcon(R.drawable.msg_mini_lock3);
+                } else {
+                    compressItem.setText(LocaleController.getString(R.string.SendAsFile));
+                    compressItem.setIcon(R.drawable.msg_filehq);
+                }
             }
         }
         final boolean hasSpoiler = count > 0 && getStarsPrice() <= 0 && (parentAlert == null || parentAlert.baseFragment instanceof ChatActivity && !((ChatActivity) parentAlert.baseFragment).isSecretChat());
@@ -4733,5 +4745,12 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                 position[1] = getListTopPadding();
             }
         }
+    }
+
+    private boolean isRgcryptMediaEnabled() {
+        if (parentAlert == null || !(parentAlert.baseFragment instanceof ChatActivity)) {
+            return false;
+        }
+        return ((ChatActivity) parentAlert.baseFragment).isRgcryptMediaEnabled();
     }
 }

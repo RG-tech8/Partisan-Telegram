@@ -37,6 +37,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -548,6 +549,7 @@ public class ChatActivity extends BaseFragment implements
                 RgCryptoEnvelope envelope = RgCryptoFileCodec.decodeV2(data);
                 String scope = RgCryptoDialogScope.fromMessageObject(messageObject);
                 RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(ApplicationLoader.applicationContext, currentAccount);
+                boolean isImage = RgCryptoConstants.TYPE_IMAGE.equals(envelope.type);
                 if (envelope.senderId != null && envelope.senderSigningKid != null) {
                     boolean hasAny = cache.hasAnySigningKeys(envelope.senderId);
                     boolean hasKid = cache.hasSigningKid(envelope.senderId, envelope.senderSigningKid);
@@ -559,12 +561,20 @@ public class ChatActivity extends BaseFragment implements
                         return;
                     }
                 }
+                com.google.crypto.tink.KeysetHandle myHpkeKeyset =
+                        RgCryptoKeysetStorage.getOrCreateHpkeKeyset(ApplicationLoader.applicationContext, currentAccount, null);
                 result = RgCryptoTextCodec.unpackEnvelope(
                         envelope,
                         scope,
-                        RgCryptoKeysetStorage.getOrCreateHpkeKeyset(ApplicationLoader.applicationContext, currentAccount, null),
+                        myHpkeKeyset,
                         (senderId, signingKid) -> cache.getSigningKeyset(senderId, signingKid)
                 );
+                if (isImage && result != null && result.status == RgCryptoDecryptResult.Status.OK) {
+                    byte[] plaintext = envelope.decryptPayload(myHpkeKeyset);
+                    byte[] finalPlaintext = plaintext;
+                    AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptedImage(finalPlaintext));
+                    return;
+                }
             } catch (Exception e) {
                 FileLog.e(e);
                 result = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, null,
@@ -620,6 +630,36 @@ public class ChatActivity extends BaseFragment implements
                     AndroidUtilities.addToClipboard(copyText));
         }
         builder.show();
+    }
+
+    private void showRgcryptDecryptedImage(byte[] data) {
+        if (data == null || data.length == 0) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        Activity activity = getParentActivity();
+        if (activity == null) {
+            return;
+        }
+        Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+        if (bitmap == null) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        ImageView imageView = new ImageView(activity);
+        imageView.setAdjustViewBounds(true);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        imageView.setImageBitmap(bitmap);
+        int padding = AndroidUtilities.dp(8);
+        FrameLayout container = new FrameLayout(activity);
+        container.setPadding(padding, padding, padding, padding);
+        container.addView(imageView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        new AlertDialog.Builder(activity)
+                .setTitle("RGCRYPT")
+                .setView(container)
+                .setNegativeButton(LocaleController.getString(R.string.Close), null)
+                .show();
     }
 
     private Dialog closeChatDialog;
@@ -12850,6 +12890,11 @@ public class ChatActivity extends BaseFragment implements
                         final HashMap<Object, Object> selectedPhotos = chatAttachAlert.getPhotoLayout().getSelectedPhotos();
                         final ArrayList<Object> selectedPhotosOrder = chatAttachAlert.getPhotoLayout().getSelectedPhotosOrder();
                         if (!selectedPhotos.isEmpty()) {
+                            boolean rgcryptMedia = forceDocument && isRgcryptMediaEnabled();
+                            if (rgcryptMedia && editingMessageObject != null) {
+                                AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+                                return;
+                            }
                             final int albumsCount = (int) Math.ceil(selectedPhotos.size() / 10f);
                             for (int i = 0; i < albumsCount; ++i) {
                                 int count = Math.min(10, selectedPhotos.size() - (i * 10));
@@ -12890,6 +12935,22 @@ public class ChatActivity extends BaseFragment implements
                                 if (i == 0) {
                                     fillEditingMediaWithCaption(photos.get(0).caption, photos.get(0).entities);
                                     updateStickersOrder = photos.get(0).updateStickersOrder;
+                                }
+
+                                if (rgcryptMedia) {
+                                    for (SendMessagesHelper.SendingMediaInfo info : photos) {
+                                        if (info.isVideo) {
+                                            AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT",
+                                                    LocaleController.getString(R.string.ErrorOccurred));
+                                            return;
+                                        }
+                                    }
+                                    for (SendMessagesHelper.SendingMediaInfo info : photos) {
+                                        sendRgcryptImageFromPath(info.path, info.caption, info.entities, notify,
+                                                scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars,
+                                                messageSuggestionParams, autoDeleteDelay);
+                                    }
+                                    continue;
                                 }
 
                                 if (editingMessageObject != null && editingMessageObject.needResendWhenEdit()) {
@@ -19912,6 +19973,10 @@ public class ChatActivity extends BaseFragment implements
         return prefs.getBoolean(org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants.PREF_AUTO_DECRYPT, true);
     }
 
+    public boolean isRgcryptMediaEnabled() {
+        return isRgcryptEnabledForCurrentDialog() && isRgcryptUiAllowed();
+    }
+
     private void updateRgcryptActionItems() {
         if (rgcryptSendKeyItem == null && rgcryptResetItem == null && rgcryptKeyManagerItem == null) {
             return;
@@ -20164,7 +20229,143 @@ public class ChatActivity extends BaseFragment implements
         return out;
     }
 
-    // rgcrypt image support removed
+    private static final class RgcryptMediaParams {
+        final String dialogScope;
+        final String senderId;
+        final java.util.List<RgCryptoRecipientPublic> recipients;
+        final com.google.crypto.tink.KeysetHandle signingKeyset;
+
+        private RgcryptMediaParams(String dialogScope, String senderId,
+                                   java.util.List<RgCryptoRecipientPublic> recipients,
+                                   com.google.crypto.tink.KeysetHandle signingKeyset) {
+            this.dialogScope = dialogScope;
+            this.senderId = senderId;
+            this.recipients = recipients;
+            this.signingKeyset = signingKeyset;
+        }
+    }
+
+    private RgcryptMediaParams buildRgcryptMediaParams() throws Exception {
+        RgCrypto.initialize();
+        long myUserId = getUserConfig().getClientUserId();
+        String dialogScope = RgCryptoDialogScope.fromDialogIdAndTopicId(dialog_id, getTopicId(), myUserId);
+        String senderId = String.valueOf(myUserId);
+        java.util.List<String> peerIds = collectRgcryptPeerIdsForDialogStrings();
+        RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(getContext(), currentAccount);
+        java.util.List<RgCryptoRecipientPublic> recipients = cache.getRecipientsForPeers(peerIds);
+        com.google.crypto.tink.KeysetHandle myHpkeKeyset =
+                RgCryptoKeysetStorage.getOrCreateHpkeKeyset(getContext(), currentAccount, null);
+        recipients.add(RgCryptoKeys.recipientFromPrivateKeyset(myHpkeKeyset));
+        recipients = dedupeRecipients(recipients);
+        com.google.crypto.tink.KeysetHandle signingKeyset =
+                RgCryptoKeysetStorage.getOrCreateSigningKeyset(getContext(), currentAccount, null);
+        return new RgcryptMediaParams(dialogScope, senderId, recipients, signingKeyset);
+    }
+
+    private boolean sendRgcryptImageFromPath(String path, CharSequence caption,
+                                             ArrayList<TLRPC.MessageEntity> captionEntities,
+                                             boolean notify, int scheduleDate, int scheduleRepeatPeriod,
+                                             long effectId, boolean invertMedia, long payStars,
+                                             MessageSuggestionParams suggestionParams, Integer autoDeleteDelay) {
+        if (TextUtils.isEmpty(path)) {
+            return false;
+        }
+        File src = new File(path);
+        if (!src.exists()) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return false;
+        }
+        if (src.length() > RgCryptoConstants.MAX_FILE_BYTES) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge));
+            return false;
+        }
+        try {
+            byte[] imageBytes = readFileBytes(src);
+            RgcryptMediaParams params = buildRgcryptMediaParams();
+            RgCryptoEnvelope envelope = RgCryptoEnvelope.packBytes(
+                    RgCryptoConstants.TYPE_IMAGE,
+                    imageBytes,
+                    params.dialogScope,
+                    params.senderId,
+                    params.signingKeyset,
+                    params.recipients
+            );
+            byte[] payload = RgCryptoFileCodec.encodeV2(envelope);
+            if (payload.length > RgCryptoConstants.MAX_FILE_BYTES) {
+                AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge));
+                return false;
+            }
+            File out = MediaController.createFileInCache(
+                    "rgcrypt_img_" + System.currentTimeMillis() + RgCryptoConstants.FILE_EXT,
+                    RgCryptoConstants.FILE_EXT
+            );
+            if (out == null) {
+                AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+                return false;
+            }
+            try (FileOutputStream outStream = new FileOutputStream(out)) {
+                outStream.write(payload);
+            }
+            ArrayList<String> paths = new ArrayList<>();
+            ArrayList<String> originalPaths = new ArrayList<>();
+            String outPath = out.getAbsolutePath();
+            paths.add(outPath);
+            originalPaths.add(outPath);
+            String captionText = caption != null ? caption.toString() : null;
+            MessageSuggestionParams paramsOrNull = suggestionParams != null ? suggestionParams : getSendMessageSuggestionParams();
+            SendMessagesHelper.prepareSendingDocuments(
+                    getAccountInstance(),
+                    paths,
+                    originalPaths,
+                    null,
+                    captionText,
+                    captionEntities,
+                    RgCryptoConstants.FILE_MIME,
+                    dialog_id,
+                    replyingMessageObject,
+                    getThreadMessage(),
+                    null,
+                    replyingQuote,
+                    null,
+                    notify,
+                    scheduleDate,
+                    scheduleRepeatPeriod,
+                    null,
+                    quickReplyShortcut,
+                    getQuickReplyId(),
+                    effectId,
+                    invertMedia,
+                    payStars,
+                    getSendMonoForumPeerId(),
+                    paramsOrNull,
+                    autoDeleteDelay
+            );
+            return true;
+        } catch (Exception e) {
+            FileLog.e(e);
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return false;
+        }
+    }
+
+    private byte[] readFileBytes(File file) throws IOException {
+        int size = (int) file.length();
+        byte[] data = new byte[size];
+        try (FileInputStream in = new FileInputStream(file)) {
+            int offset = 0;
+            while (offset < size) {
+                int read = in.read(data, offset, size - offset);
+                if (read <= 0) {
+                    break;
+                }
+                offset += read;
+            }
+            if (offset != size) {
+                throw new IOException("short read");
+            }
+        }
+        return data;
+    }
     private void selectRgcryptPeerId(RgcryptPeerIdCallback callback) {
         if (callback == null) {
             return;
@@ -35796,8 +35997,6 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
 
-        // rgcrypt image support removed
-
         animatorRoundMessageCameraVisibility.setValue(false, true);
 
         if (editingMessageObject != null && editingMessageObject.needResendWhenEdit() && !ChatObject.canManageMonoForum(currentAccount, editingMessageObject.getDialogId())) {
@@ -35819,6 +36018,20 @@ public class ChatActivity extends BaseFragment implements
         fillEditingMediaWithCaption(photoEntry.caption, photoEntry.entities);
         final boolean finalForceDocument = forceDocument;
         AlertsCreator.ensurePaidMessageConfirmation(currentAccount, getDialogId(), 1, payStars -> {
+            if (!photoEntry.isVideo && finalForceDocument && isRgcryptMediaEnabled()) {
+                if (editingMessageObject != null) {
+                    AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT",
+                            LocaleController.getString(R.string.ErrorOccurred));
+                    return;
+                }
+                String imagePath = photoEntry.imagePath != null ? photoEntry.imagePath : photoEntry.path;
+                if (sendRgcryptImageFromPath(imagePath, photoEntry.caption, photoEntry.entities, notify,
+                        scheduleDate, scheduleRepeatPeriod, photoEntry.effectId, false, payStars,
+                        getSendMessageSuggestionParams(), null)) {
+                    afterMessageSend();
+                }
+                return;
+            }
             if (editingMessageObject != null && editingMessageObject.needResendWhenEdit()) {
                 MessageSuggestionParams params = messageSuggestionParams != null ?
                     messageSuggestionParams : MessageSuggestionParams.of(editingMessageObject.messageOwner.suggested_post);

@@ -1256,6 +1256,7 @@
     <string name="VideoPlayerChromecast">Chromecast</string>
     <string name="SendAsFile">Send as file</string>
     <string name="SendAsFiles">Send as files</string>
+    <string name="SendWithRgcrypt">Send with RGCRYPT</string>
     <string name="OpenUrlTitle">Open Link</string>
     <string name="OpenUrlAlert2">Do you want to open %1$s?</string>
     <string name="OpenUrlOption1">Log in to %1$s as **%2$s**</string>

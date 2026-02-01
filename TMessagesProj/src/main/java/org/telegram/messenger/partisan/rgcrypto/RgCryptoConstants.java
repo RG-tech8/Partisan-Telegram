@@ -15,6 +15,7 @@ public final class RgCryptoConstants {
     public static final String SIGNING_TEMPLATE = "ED25519";
     public static final String AEAD_ALG = "AES256_GCM";
     public static final String STREAMING_AEAD_TEMPLATE = "AES256_GCM_HKDF_4KB";
+    public static final String TYPE_IMAGE = "IMAGE";
 
     private RgCryptoConstants() {
     }

@@ -7325,12 +7325,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 } else if (a == 3) {
                     cell.setTextAndIcon(getString(R.string.SendAsNewPhoto), R.drawable.msg_send);
                 } else if (a == 4) {
-                    if (placeProvider != null && placeProvider.getSelectedCount() > 1) {
-                        cell.setTextAndIcon(getString(R.string.SendAsFiles), R.drawable.msg_sendfile);
+                    if (parentChatActivity != null && parentChatActivity.isRgcryptMediaEnabled()) {
+                        cell.setTextAndIcon(getString(R.string.SendWithRgcrypt), R.drawable.msg_mini_lock3);
                     } else {
-                        cell.setTextAndIcon(getString(R.string.SendAsFile), R.drawable.msg_sendfile);
+                        cell.setTextAndIcon(LocaleController.getString("SendWithoutCompression", R.string.SendWithoutCompression), R.drawable.msg_sendfile);
                     }
-                    cell.setTextAndIcon(LocaleController.getString("SendWithoutCompression", R.string.SendWithoutCompression), R.drawable.msg_sendfile);
                 } else if (a == 5) {
                     cell.setTextAndIcon(LocaleController.getString("DeleteAsRead", R.string.DeleteAsRead), R.drawable.msg_delete_auto);
                 }
