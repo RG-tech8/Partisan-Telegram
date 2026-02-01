@@ -75,6 +75,7 @@ import org.telegram.messenger.partisan.rgcrypto.RgCryptoEnvelope;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringCache;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringStore;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCard;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoReplayCache;
 import org.telegram.messenger.partisan.Utils;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
 import org.telegram.messenger.utils.tlutils.TlUtils;
@@ -219,9 +220,11 @@ public class MessageObject {
     public boolean rgcryptKeyCardVerified;
     public boolean rgcryptKeyCardSignatureOk;
     public String rgcryptKeyCardFingerprint;
+    public String rgcryptKeyCardSafetyNumber;
     public String rgcryptKeyCardSigningKid;
     public String rgcryptKeyCardEncryptionKid;
     public String rgcryptKeyRequestRequesterId;
+    public boolean rgcryptAutoDecrypted;
     // rgcrypt image support removed
     public CharSequence linkDescription;
     public CharSequence caption;
@@ -6085,9 +6088,11 @@ public class MessageObject {
         rgcryptKeyCardVerified = false;
         rgcryptKeyCardSignatureOk = false;
         rgcryptKeyCardFingerprint = null;
+        rgcryptKeyCardSafetyNumber = null;
         rgcryptKeyCardSigningKid = null;
         rgcryptKeyCardEncryptionKid = null;
         rgcryptKeyRequestRequesterId = null;
+        rgcryptAutoDecrypted = false;
         if (messageOwner == null) {
             return;
         }
@@ -6129,13 +6134,42 @@ public class MessageObject {
                 rgcryptKeyCardSignatureOk = signatureOk;
                 if (signatureOk) {
                     String peerId = String.valueOf(getFromChatId());
-                    try {
-                        RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(ApplicationLoader.applicationContext, currentAccount);
-                        int trust = cache.getTrustState(peerId, rgcryptKeyCardSigningKid, rgcryptKeyCardEncryptionKid);
-                        rgcryptKeyCardVerified = trust == org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoTrustState.TRUSTED;
-                    } catch (Exception ignored) {
-                        rgcryptKeyCardVerified = false;
-                    }
+                      try {
+                          RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(ApplicationLoader.applicationContext, currentAccount);
+                          int trust = cache.getTrustState(peerId, rgcryptKeyCardSigningKid, rgcryptKeyCardEncryptionKid);
+                          rgcryptKeyCardVerified = trust == org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoTrustState.TRUSTED;
+                          if (!rgcryptKeyCardVerified
+                                  && trust == org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoTrustState.UNKNOWN
+                                  && rgcryptKeyCardSigningKid != null) {
+                              try {
+                                  RgCryptoKeyringStore store = new RgCryptoKeyringStore(ApplicationLoader.applicationContext, currentAccount);
+                                  java.util.List<org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringEntry> entries =
+                                          store.getByPeer(peerId);
+                                  if (entries != null) {
+                                      for (org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringEntry entry : entries) {
+                                          if (entry == null) {
+                                              continue;
+                                          }
+                                          if (!rgcryptKeyCardSigningKid.equals(entry.signingKid)) {
+                                              continue;
+                                          }
+                                          if (rgcryptKeyCardEncryptionKid != null
+                                                  && entry.encryptionKid != null
+                                                  && !rgcryptKeyCardEncryptionKid.equals(entry.encryptionKid)) {
+                                              continue;
+                                          }
+                                          rgcryptKeyCardVerified = entry.trustState ==
+                                                  org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoTrustState.TRUSTED;
+                                          break;
+                                      }
+                                  }
+                              } catch (Exception ignored) {
+                                  // keep current verified status
+                              }
+                          }
+                      } catch (Exception ignored) {
+                          rgcryptKeyCardVerified = false;
+                      }
                 } else {
                     rgcryptKeyCardVerified = false;
                 }
@@ -6143,6 +6177,11 @@ public class MessageObject {
                     rgcryptKeyCardFingerprint = card.fingerprintSha256();
                 } catch (Exception ignored) {
                     rgcryptKeyCardFingerprint = null;
+                }
+                try {
+                    rgcryptKeyCardSafetyNumber = card.safetyNumber();
+                } catch (Exception ignored) {
+                    rgcryptKeyCardSafetyNumber = null;
                 }
                 if (!rgcryptKeyCardSignatureOk) {
                     messageText = "\uD83D\uDD10 KeyCard (BAD SIGNATURE)";
@@ -6175,7 +6214,11 @@ public class MessageObject {
         }
         switch (rgcryptDecryptResult.status) {
             case OK:
-                messageText = rgcryptDecryptResult.plaintext;
+                if (rgcryptDecryptResult.replayed) {
+                    messageText = "⚠️ Повтор сообщения\n" + rgcryptDecryptResult.plaintext;
+                } else {
+                    messageText = rgcryptDecryptResult.plaintext;
+                }
                 break;
             case NEED_KEY: {
                 String kid = rgcryptDecryptResult.missingKid != null ? rgcryptDecryptResult.missingKid : "?";
@@ -6203,8 +6246,9 @@ public class MessageObject {
             RgCrypto.initialize();
             String scope = RgCryptoDialogScope.fromMessageObject(this);
             RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(ApplicationLoader.applicationContext, currentAccount);
+            RgCryptoEnvelope envelope = null;
             try {
-                RgCryptoEnvelope envelope = RgCryptoEnvelope.decodeFromTransport(normalized);
+                envelope = RgCryptoEnvelope.decodeFromTransport(normalized);
                 if (envelope.senderId != null && envelope.senderSigningKid != null) {
                     boolean hasAny = cache.hasAnySigningKeys(envelope.senderId);
                     boolean hasKid = cache.hasSigningKid(envelope.senderId, envelope.senderSigningKid);
@@ -6234,6 +6278,25 @@ public class MessageObject {
                     RgCryptoKeysetStorage.getOrCreateHpkeKeyset(ApplicationLoader.applicationContext, currentAccount, null),
                     (senderId, signingKid) -> cache.getSigningKeyset(senderId, signingKid)
             );
+            if (rgcryptDecryptResult != null && rgcryptDecryptResult.status == RgCryptoDecryptResult.Status.OK) {
+                rgcryptAutoDecrypted = true;
+            }
+            if (rgcryptDecryptResult != null
+                    && rgcryptDecryptResult.status == RgCryptoDecryptResult.Status.OK
+                    && envelope != null) {
+                String senderPart = envelope.senderId != null ? envelope.senderId : envelope.senderSigningKid;
+                String replayToken = envelope.msgNonce != null ? ("n:" + envelope.msgNonce) :
+                        (envelope.ciphertextSha256 != null ? ("h:" + envelope.ciphertextSha256) : null);
+                if (senderPart != null && replayToken != null) {
+                    String replayKey = (scope != null ? scope : "") + "|" + senderPart + "|" + replayToken;
+                    rgcryptDecryptResult.replayed = RgCryptoReplayCache.markSeen(
+                            ApplicationLoader.applicationContext,
+                            currentAccount,
+                            replayKey,
+                            messageOwner.id
+                    );
+                }
+            }
         } catch (Exception e) {
             rgcryptDecryptResult = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, null,
                     RgCryptoDecryptResult.SignatureState.UNKNOWN);

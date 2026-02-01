@@ -20081,10 +20081,10 @@ public class ChatActivity extends BaseFragment implements
         String[] items = new String[] {
                 "Отправить KeyCard",
                 "Скопировать мой KeyCard",
+                "Показать мой отпечаток",
                 "Сменить мой ключ",
                 "Импортировать ключ из текста",
-                "Удалить импортированный ключ",
-                "Очистить расшифровку"
+                "Удалить импортированный ключ"
         };
         new AlertDialog.Builder(getParentActivity())
                 .setTitle("RGCRYPT")
@@ -20097,52 +20097,42 @@ public class ChatActivity extends BaseFragment implements
                             copyMyKeyCardToClipboard();
                             break;
                         case 2:
-                            showRgcryptResetKeysDialog();
+                            showMyKeyFingerprint();
                             break;
                         case 3:
-                            showRgcryptImportFromTextDialog();
+                            showRgcryptResetKeysDialog();
                             break;
                         case 4:
-                            showRgcryptDeleteKeyDialog();
+                            showRgcryptImportFromTextDialog();
                             break;
                         case 5:
-                            clearRgcryptDecryptedMessages();
+                            showRgcryptDeleteKeyDialog();
                             break;
                     }
                 })
                 .show();
     }
 
-    private void clearRgcryptDecryptedMessages() {
-        if (chatAdapter == null) {
-            return;
-        }
-        ArrayList<MessageObject> list = chatAdapter.getMessages();
-        if (list == null || list.isEmpty()) {
-            return;
-        }
-        int cleared = 0;
-        for (int i = 0; i < list.size(); i++) {
-            MessageObject messageObject = list.get(i);
-            if (messageObject == null || messageObject.rgcryptDecryptResult == null) {
-                continue;
+    private void showMyKeyFingerprint() {
+        try {
+            RgCrypto.initialize();
+            RgCryptoKeyCard card = RgCryptoKeyCard.create(
+                    RgCryptoKeysetStorage.getOrCreateSigningKeyset(getContext(), currentAccount, null),
+                    RgCryptoKeysetStorage.getOrCreateHpkeKeyset(getContext(), currentAccount, null),
+                    null
+            );
+            String fingerprint = card.fingerprintSha256();
+            String safetyNumber = card.safetyNumber();
+            StringBuilder message = new StringBuilder();
+            message.append("Отпечаток:\n").append(fingerprint);
+            if (safetyNumber != null) {
+                message.append("\n\nSafety number:\n").append(safetyNumber);
             }
-            if (messageObject.rgcryptDecryptResult.status != org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult.Status.OK) {
-                continue;
-            }
-            if (messageObject.rgcryptOriginalText == null) {
-                continue;
-            }
-            messageObject.rgcryptDecryptResult = null;
-            messageObject.messageText = messageObject.rgcryptOriginalText;
-            messageObject.forceUpdate = true;
-            cleared++;
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", message.toString());
+        } catch (Exception e) {
+            FileLog.e(e);
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Не удалось получить отпечаток");
         }
-        if (cleared > 0 && chatAdapter != null) {
-            chatAdapter.notifyDataSetChanged(false);
-        }
-        AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT",
-                cleared > 0 ? ("Расшифровка очищена (" + cleared + ")") : "Нет расшифрованных сообщений");
     }
 
     private void showRgcryptResetKeysDialog() {
@@ -33734,10 +33724,46 @@ public class ChatActivity extends BaseFragment implements
                     sb.append(trusted ? "🔐 Key verified" : "Key NOT verified").append("\n");
                     sb.append(selectedObject.rgcryptKeyCardSignatureOk ? "Signature: OK" : "Signature: BAD").append("\n");
                     sb.append("Fingerprint: ").append(selectedObject.rgcryptKeyCardFingerprint);
+                    if (selectedObject.rgcryptKeyCardSafetyNumber != null) {
+                        sb.append("\nSafety number:\n").append(selectedObject.rgcryptKeyCardSafetyNumber);
+                    }
                     if (reused) {
                         sb.append("\nWarning: same key used by another contact");
                     }
-                    AlertsCreator.showSimpleAlert(this, "Отпечаток", sb.toString());
+                    final String keyCardJson = selectedObject.rgcryptKeyCardJson;
+                    final boolean signatureOk = selectedObject.rgcryptKeyCardSignatureOk;
+                    AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity())
+                            .setTitle("Отпечаток")
+                            .setMessage(sb.toString())
+                            .setNegativeButton("Закрыть", null);
+                    if (!trusted && signatureOk && keyCardJson != null) {
+                        builder.setPositiveButton("Доверять", (dialog, which) -> {
+                            Utilities.globalQueue.postRunnable(() -> {
+                                try {
+                                    RgCryptoKeyringStore store = new RgCryptoKeyringStore(getParentActivity(), currentAccount);
+                                    store.importKeyCard(peerId, keyCardJson, RgCryptoTrustState.TRUSTED, false);
+                                    RgCryptoKeyringCache.get(getParentActivity(), currentAccount)
+                                            .refreshForPeers(Collections.singletonList(peerId));
+                                    AndroidUtilities.runOnUIThread(() -> {
+                                        if (selectedObject != null) {
+                                            selectedObject.rgcryptKeyCardVerified = true;
+                                            selectedObject.messageText = "🔐 KeyCard (VERIFIED)";
+                                            selectedObject.forceUpdate = true;
+                                            if (chatAdapter != null) {
+                                                chatAdapter.notifyDataSetChanged(false);
+                                            }
+                                        }
+                                        AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT", "Ключ помечен как доверенный");
+                                    });
+                                } catch (Exception e) {
+                                    FileLog.e(e);
+                                    AndroidUtilities.runOnUIThread(() ->
+                                            AlertsCreator.showSimpleAlert(ChatActivity.this, "RGCRYPT", "Не удалось пометить ключ"));
+                                }
+                            });
+                        });
+                    }
+                    builder.show();
                 }
                 break;
             }
