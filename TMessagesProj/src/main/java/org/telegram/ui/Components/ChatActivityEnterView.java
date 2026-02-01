@@ -6574,6 +6574,10 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (slowModeButton != null) {
             slowModeButton.setPremiumMode(ChatObject.isPossibleRemoveChatRestrictionsByBoosts(chatInfo));
         }
+        if (getContext() != null) {
+            // Refresh recipients after chat info is available (chatFull participants).
+            RgCryptoKeyringCache.get(getContext(), currentAccount).refreshForPeers(collectRgcryptPeerIds());
+        }
         if (ChatObject.isIgnoredChatRestrictionsForBoosters(chatInfo)) {
             return;
         }
