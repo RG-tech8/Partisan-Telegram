@@ -112,7 +112,7 @@ class UpdateMessageParser {
     }
 
     private String getTargetFileName() {
-        return ApplicationLoader.isRealBuildStandaloneBuild() ? "PTelegram.apk" : "PTelegram_GooglePlay.apk";
+        return "RGram.apk";
     }
 
     private UpdateData tryParseText(CharSequence text) {
