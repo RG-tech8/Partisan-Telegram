@@ -157,7 +157,9 @@ import org.telegram.messenger.partisan.voicechange.VoiceChangerUtils;
 import org.telegram.messenger.partisan.rgcrypto.RgCrypto;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoDialogScope;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoEnvelope;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoFileCodec;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoRecipientPublic;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoTextCodec;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeysetStorage;
@@ -645,7 +647,9 @@ public class ChatActivityEnterView extends FrameLayout implements
     private BotKeyboardView botKeyboardView;
     private ImageView notifyButton;
     private ImageView rgcryptButton;
+    private ImageView rgcryptModeButton;
     private boolean rgcryptEnabled;
+    private boolean rgcryptSendAsFile;
     @Nullable
     private ImageView scheduledButton;
     @Nullable
@@ -2775,6 +2779,18 @@ public class ChatActivityEnterView extends FrameLayout implements
                 updateFieldHint(true);
             });
             updateRgcryptButtonState();
+
+            rgcryptModeButton = new ImageView(context);
+            rgcryptModeButton.setScaleType(ImageView.ScaleType.CENTER);
+            rgcryptModeButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector)));
+            rgcryptModeButton.setContentDescription("RGCRYPT: text");
+            rgcryptModeButton.setVisibility(GONE);
+            attachLayout.addView(rgcryptModeButton, LayoutHelper.createLinear(DEFAULT_HEIGHT, DEFAULT_HEIGHT));
+            rgcryptModeButton.setOnClickListener(v -> {
+                setRgcryptSendAsFile(!rgcryptSendAsFile);
+                updateFieldHint(true);
+            });
+            updateRgcryptModeButtonState();
 
             attachButton = new ImageView(context) {
                 @Override
@@ -7422,6 +7438,79 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (delegate != null && parentFragment != null && (scheduleDate != 0) == parentFragment.isInScheduleMode()) {
                 delegate.prepareMessageSending();
             }
+            if (useRgcrypt && rgcryptSendAsFile) {
+                try {
+                    RgCryptoEnvelope envelope = RgCryptoEnvelope.packText(
+                            text.toString(),
+                            rgcryptDialogScope,
+                            rgcryptSenderId,
+                            rgcryptSigningKeyset,
+                            rgcryptRecipients
+                    );
+                    byte[] payload = RgCryptoFileCodec.encodeV2(envelope);
+                    if (payload.length > RgCryptoConstants.MAX_FILE_BYTES) {
+                        if (parentFragment != null) {
+                            AlertsCreator.showSimpleAlert(parentFragment, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge));
+                        }
+                        return false;
+                    }
+                    File file = MediaController.createFileInCache("rgcrypt_" + System.currentTimeMillis() + RgCryptoConstants.FILE_EXT,
+                            RgCryptoConstants.FILE_EXT);
+                    if (file == null) {
+                        if (parentFragment != null) {
+                            AlertsCreator.showSimpleAlert(parentFragment, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+                        }
+                        return false;
+                    }
+                    try (FileOutputStream out = new FileOutputStream(file)) {
+                        out.write(payload);
+                    }
+                    ArrayList<String> paths = new ArrayList<>();
+                    ArrayList<String> originalPaths = new ArrayList<>();
+                    String path = file.getAbsolutePath();
+                    paths.add(path);
+                    originalPaths.add(path);
+                    MessageObject replyToTopMsg = getThreadMessage();
+                    if (replyToTopMsg == null && replyingTopMessage != null) {
+                        replyToTopMsg = replyingTopMessage;
+                    }
+                    SendMessagesHelper.prepareSendingDocuments(
+                            accountInstance,
+                            paths,
+                            originalPaths,
+                            null,
+                            null,
+                            null,
+                            RgCryptoConstants.FILE_MIME,
+                            dialog_id,
+                            replyingMessageObject,
+                            replyToTopMsg,
+                            null,
+                            replyingQuote,
+                            null,
+                            notify,
+                            scheduleDate,
+                            scheduleRepeatPeriod,
+                            null,
+                            parentFragment != null ? parentFragment.quickReplyShortcut : null,
+                            parentFragment != null ? parentFragment.getQuickReplyId() : 0,
+                            effectId,
+                            false,
+                            payStars,
+                            getSendMonoForumPeerId(),
+                            getSendMessageSuggestionParams(),
+                            autoDeleteDelay
+                    );
+                    sendButton.setEffect(effectId = 0);
+                    return true;
+                } catch (Exception e) {
+                    FileLog.e(e);
+                    if (parentFragment != null) {
+                        AlertsCreator.showSimpleAlert(parentFragment, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+                    }
+                    return false;
+                }
+            }
             int end;
             int start = 0;
             do {
@@ -8483,8 +8572,10 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
         rgcryptEnabled = prefs.getBoolean(rgcryptPrefKey(), false);
+        rgcryptSendAsFile = prefs.getBoolean(rgcryptSendAsFilePrefKey(), false);
         updateRgcryptUiVisibility();
         updateRgcryptButtonState();
+        updateRgcryptModeButtonState();
     }
 
     private void setRgcryptEnabled(boolean enabled) {
@@ -8496,6 +8587,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         prefs.edit().putBoolean(rgcryptPrefKey(), enabled).apply();
         updateRgcryptUiVisibility();
         updateRgcryptButtonState();
+        updateRgcryptModeButtonState();
         if (delegate != null) {
             delegate.onRgcryptStateChanged(enabled);
         }
@@ -8514,12 +8606,19 @@ public class ChatActivityEnterView extends FrameLayout implements
         return "rgcrypt_enabled_" + currentAccount + "_" + dialog_id;
     }
 
+    private String rgcryptSendAsFilePrefKey() {
+        return "rgcrypt_send_file_" + currentAccount + "_" + dialog_id;
+    }
+
     public void updateRgcryptUiVisibility() {
         if (rgcryptButton == null) {
             return;
         }
         boolean allowed = isRgcryptUiAllowed();
         rgcryptButton.setVisibility(allowed ? VISIBLE : GONE);
+        if (rgcryptModeButton != null) {
+            rgcryptModeButton.setVisibility(allowed && rgcryptEnabled ? VISIBLE : GONE);
+        }
         if (!allowed && rgcryptEnabled) {
             rgcryptEnabled = false;
             SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
@@ -8535,6 +8634,25 @@ public class ChatActivityEnterView extends FrameLayout implements
         int color = getThemedColor(rgcryptEnabled ? Theme.key_chat_messagePanelVoiceLock : Theme.key_glass_defaultIcon);
         rgcryptButton.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
         rgcryptButton.setAlpha(rgcryptEnabled ? 1f : 0.6f);
+        updateRgcryptModeButtonState();
+    }
+
+    private void setRgcryptSendAsFile(boolean enabled) {
+        rgcryptSendAsFile = enabled;
+        SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(rgcryptSendAsFilePrefKey(), enabled).apply();
+        updateRgcryptModeButtonState();
+    }
+
+    private void updateRgcryptModeButtonState() {
+        if (rgcryptModeButton == null) {
+            return;
+        }
+        rgcryptModeButton.setImageResource(rgcryptSendAsFile ? R.drawable.msg_sendfile : R.drawable.msg_message_s);
+        int color = getThemedColor(rgcryptEnabled ? Theme.key_chat_messagePanelVoiceLock : Theme.key_glass_defaultIcon);
+        rgcryptModeButton.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
+        rgcryptModeButton.setAlpha(rgcryptEnabled ? 1f : 0.6f);
+        rgcryptModeButton.setContentDescription(rgcryptSendAsFile ? "RGCRYPT: file" : "RGCRYPT: text");
     }
 
     private ArrayList<String> collectRgcryptPeerIds() {

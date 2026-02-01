@@ -10340,6 +10340,7 @@
     <string name="PartisanSettingsInfo">Configure other application options.</string>
     <string name="RgcryptAutoDecrypt">RGCRYPT auto-decrypt</string>
     <string name="RgcryptAutoDecryptInfo">Automatically decrypt RGCRYPT messages in chats.</string>
+    <string name="RgcryptDecryptFile">Decrypt RGCRYPT file</string>
     <string name="ShowVersion">Show Version</string>
     <string name="ShowVersionInfo">Show PTelegram version in settings.</string>
     <string name="ShowId">Show ID</string>

@@ -188,7 +188,11 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.partisan.rgcrypto.RgCrypto;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoDecryptResult;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoDialogScope;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoEnvelope;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoFileCodec;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCard;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyCardCodec;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyRequest;
@@ -331,8 +335,10 @@ import org.telegram.ui.bots.WebViewRequestProps;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLDecoder;
@@ -481,6 +487,139 @@ public class ChatActivity extends BaseFragment implements
             FileLog.e(e);
             AlertsCreator.showSimpleAlert(this, "RGCRYPT", "Не удалось скопировать KeyCard");
         }
+    }
+
+    private boolean isRgcryptFileMessage(MessageObject messageObject) {
+        if (messageObject == null || messageObject.getDocument() == null) {
+            return false;
+        }
+        String name = messageObject.getDocumentName();
+        if (TextUtils.isEmpty(name)) {
+            return false;
+        }
+        return name.toLowerCase(Locale.ROOT).endsWith(RgCryptoConstants.FILE_EXT);
+    }
+
+    private File getRgcryptFile(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null) {
+            return null;
+        }
+        if (!TextUtils.isEmpty(messageObject.messageOwner.attachPath)) {
+            File direct = new File(messageObject.messageOwner.attachPath);
+            if (direct.exists()) {
+                return direct;
+            }
+        }
+        File fromLoader = FileLoader.getInstance(currentAccount).getPathToMessage(messageObject.messageOwner);
+        if (fromLoader != null && fromLoader.exists()) {
+            return fromLoader;
+        }
+        return null;
+    }
+
+    private void decryptRgcryptFile(MessageObject messageObject) {
+        File file = getRgcryptFile(messageObject);
+        if (file == null || !file.exists()) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        if (file.length() > RgCryptoConstants.MAX_FILE_BYTES) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge));
+            return;
+        }
+        Utilities.globalQueue.postRunnable(() -> {
+            RgCryptoDecryptResult result;
+            try {
+                byte[] data = new byte[(int) file.length()];
+                try (FileInputStream in = new FileInputStream(file)) {
+                    int offset = 0;
+                    while (offset < data.length) {
+                        int read = in.read(data, offset, data.length - offset);
+                        if (read <= 0) {
+                            break;
+                        }
+                        offset += read;
+                    }
+                    if (offset != data.length) {
+                        throw new IOException("short read");
+                    }
+                }
+                RgCrypto.initialize();
+                RgCryptoEnvelope envelope = RgCryptoFileCodec.decodeV2(data);
+                String scope = RgCryptoDialogScope.fromMessageObject(messageObject);
+                RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(ApplicationLoader.applicationContext, currentAccount);
+                if (envelope.senderId != null && envelope.senderSigningKid != null) {
+                    boolean hasAny = cache.hasAnySigningKeys(envelope.senderId);
+                    boolean hasKid = cache.hasSigningKid(envelope.senderId, envelope.senderSigningKid);
+                    if (hasAny && !hasKid) {
+                        result = RgCryptoDecryptResult.needKey(envelope.senderSigningKid, envelope.senderId,
+                                RgCryptoDecryptResult.SignatureState.UNKNOWN);
+                        RgCryptoDecryptResult finalResult = result;
+                        AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+                        return;
+                    }
+                }
+                result = RgCryptoTextCodec.unpackEnvelope(
+                        envelope,
+                        scope,
+                        RgCryptoKeysetStorage.getOrCreateHpkeKeyset(ApplicationLoader.applicationContext, currentAccount, null),
+                        (senderId, signingKid) -> cache.getSigningKeyset(senderId, signingKid)
+                );
+            } catch (Exception e) {
+                FileLog.e(e);
+                result = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, null,
+                        RgCryptoDecryptResult.SignatureState.UNKNOWN);
+            }
+            RgCryptoDecryptResult finalResult = result;
+            AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+        });
+    }
+
+    private void showRgcryptDecryptResult(RgCryptoDecryptResult result) {
+        if (result == null) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        String message;
+        boolean canCopy = false;
+        switch (result.status) {
+            case OK:
+                message = result.plaintext;
+                canCopy = true;
+                break;
+            case NEED_KEY: {
+                String kid = result.missingKid != null ? result.missingKid : "?";
+                message = "🔒 Нет ключа (KID " + kid + ")";
+                break;
+            }
+            case BAD_SIGNATURE:
+                message = "Подпись не прошла";
+                break;
+            case BAD_HASH:
+                message = "Сообщение повреждено";
+                break;
+            case DECRYPT_FAIL:
+                message = "🔒 Не удалось расшифровать";
+                break;
+            case PARSE_FAIL:
+            default:
+                message = LocaleController.getString(R.string.ErrorOccurred);
+                break;
+        }
+        Activity activity = getParentActivity();
+        if (activity == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity)
+                .setTitle("RGCRYPT")
+                .setMessage(message)
+                .setNegativeButton(LocaleController.getString(R.string.Close), null);
+        if (canCopy) {
+            String copyText = message;
+            builder.setPositiveButton(LocaleController.getString(R.string.Copy), (dialog, which) ->
+                    AndroidUtilities.addToClipboard(copyText));
+        }
+        builder.show();
     }
 
     private Dialog closeChatDialog;
@@ -1293,6 +1432,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_RGCRYPT_SEND_KEY = 117;
     public final static int OPTION_RGCRYPT_IMPORT_KEYCARD = 118;
     public final static int OPTION_RGCRYPT_SHOW_FINGERPRINT = 119;
+    public final static int OPTION_RGCRYPT_DECRYPT_FILE = 120;
     private final static int RGCRYPT_SEND_KEY_MENU = 1200;
     private final static int RGCRYPT_RESET_KEYS_MENU = 1201;
     private final static int RGCRYPT_KEY_MANAGER_MENU = 1202;
@@ -33663,6 +33803,12 @@ public class ChatActivity extends BaseFragment implements
                 }
                 break;
             }
+            case OPTION_RGCRYPT_DECRYPT_FILE: {
+                if (selectedObject != null) {
+                    decryptRgcryptFile(selectedObject);
+                }
+                break;
+            }
             case OPTION_SAVE_TO_GALLERY: {
                 if (Build.VERSION.SDK_INT >= 23 && (Build.VERSION.SDK_INT <= 28 || BuildVars.NO_SCOPED_STORAGE) && getParentActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                     getParentActivity().requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4);
@@ -45696,6 +45842,11 @@ public class ChatActivity extends BaseFragment implements
                         icons.add(R.drawable.msg_gif);
                     }
                 } else if (type == 4) {
+                    if (isRgcryptUiAllowed() && isRgcryptFileMessage(selectedObject) && selectedObject.mediaExists()) {
+                        items.add(LocaleController.getString(R.string.RgcryptDecryptFile));
+                        options.add(OPTION_RGCRYPT_DECRYPT_FILE);
+                        icons.add(R.drawable.msg_mini_lock3);
+                    }
                     if (!noforwardsOrPaidMedia && !selectedObject.hasRevealedExtendedMedia()) {
                         if (selectedObject.isVideo()) {
                             if (!selectedObject.needDrawBluredPreview()) {

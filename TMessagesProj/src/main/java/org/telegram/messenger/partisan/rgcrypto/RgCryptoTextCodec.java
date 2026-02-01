@@ -53,13 +53,23 @@ public final class RgCryptoTextCodec {
             return RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, null,
                     RgCryptoDecryptResult.SignatureState.UNKNOWN);
         }
+        return unpackEnvelope(envelope, dialogScope, myHpkePrivKeyset, signingKeyProvider);
+    }
+
+    public static RgCryptoDecryptResult unpackEnvelope(RgCryptoEnvelope envelope, String dialogScope,
+                                                       KeysetHandle myHpkePrivKeyset,
+                                                       SigningKeyProvider signingKeyProvider) {
+        if (envelope == null) {
+            return RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, null,
+                    RgCryptoDecryptResult.SignatureState.UNKNOWN);
+        }
 
         if (dialogScope != null && envelope.dialogScope != null && !dialogScope.equals(envelope.dialogScope)) {
             if (RgCryptoDialogScope.isCompatibleUserScope(dialogScope, envelope.dialogScope, envelope.senderId)) {
                 // allow legacy user scope "u:<senderId>" for this dialog
             } else {
-            return RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, envelope.senderId,
-                    RgCryptoDecryptResult.SignatureState.UNKNOWN);
+                return RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, envelope.senderId,
+                        RgCryptoDecryptResult.SignatureState.UNKNOWN);
             }
         }
 

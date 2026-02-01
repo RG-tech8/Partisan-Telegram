@@ -6,6 +6,7 @@ import com.google.crypto.tink.KeysetHandle;
 import com.google.crypto.tink.PublicKeySign;
 import com.google.crypto.tink.PublicKeyVerify;
 import com.google.crypto.tink.RegistryConfiguration;
+import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.WireFormat;
 
@@ -136,6 +137,137 @@ public final class RgCryptoEnvelope {
         String base64 = normalized.substring(idx + RgCryptoConstants.PREFIX.length());
         byte[] json = RgCryptoBase64.decode(base64);
         return RgCryptoJson.fromBytes(json, RgCryptoEnvelope.class);
+    }
+
+    public byte[] encodeBinary() throws GeneralSecurityException {
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            CodedOutputStream output = CodedOutputStream.newInstance(out);
+            output.writeInt32(1, version);
+            if (type != null) {
+                output.writeString(2, type);
+            }
+            output.writeInt32(3, senderSigningKeyId);
+            if (recipients != null) {
+                for (RecipientEntry entry : recipients) {
+                    byte[] bytes = recipientEntryBinaryBytes(entry);
+                    output.writeTag(4, WireFormat.WIRETYPE_LENGTH_DELIMITED);
+                    output.writeUInt32NoTag(bytes.length);
+                    output.writeRawBytes(bytes);
+                }
+            }
+            if (aeadAlg != null) {
+                output.writeString(5, aeadAlg);
+            }
+            if (hpkeAlg != null) {
+                output.writeString(6, hpkeAlg);
+            }
+            if (ciphertextSha256 != null) {
+                output.writeByteArray(7, RgCryptoBase64.decode(ciphertextSha256));
+            }
+            if (dialogScope != null) {
+                output.writeString(8, dialogScope);
+            }
+            if (senderId != null) {
+                output.writeString(9, senderId);
+            }
+            if (senderSigningKid != null) {
+                output.writeString(10, senderSigningKid);
+            }
+            if (msgNonce != null) {
+                output.writeByteArray(11, RgCryptoBase64.decode(msgNonce));
+            }
+            if (createdAtMs != 0) {
+                output.writeInt64(12, createdAtMs);
+            }
+            if (ciphertext != null) {
+                output.writeByteArray(13, RgCryptoBase64.decode(ciphertext));
+            }
+            if (signature != null) {
+                output.writeByteArray(14, RgCryptoBase64.decode(signature));
+            }
+            if (senderSigningKeysetJson != null) {
+                output.writeString(15, senderSigningKeysetJson);
+            }
+            output.flush();
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new GeneralSecurityException("Failed to encode binary envelope", e);
+        }
+    }
+
+    public static RgCryptoEnvelope decodeBinary(byte[] data) throws GeneralSecurityException {
+        if (data == null) {
+            throw new GeneralSecurityException("missing data");
+        }
+        RgCryptoEnvelope envelope = new RgCryptoEnvelope();
+        try {
+            CodedInputStream input = CodedInputStream.newInstance(data);
+            while (!input.isAtEnd()) {
+                int tag = input.readTag();
+                if (tag == 0) {
+                    break;
+                }
+                int fieldNumber = WireFormat.getTagFieldNumber(tag);
+                switch (fieldNumber) {
+                    case 1:
+                        envelope.version = input.readInt32();
+                        break;
+                    case 2:
+                        envelope.type = input.readString();
+                        break;
+                    case 3:
+                        envelope.senderSigningKeyId = input.readInt32();
+                        break;
+                    case 4:
+                        RecipientEntry entry = recipientEntryFromBinary(input.readByteArray());
+                        if (envelope.recipients == null) {
+                            envelope.recipients = new ArrayList<>();
+                        }
+                        envelope.recipients.add(entry);
+                        break;
+                    case 5:
+                        envelope.aeadAlg = input.readString();
+                        break;
+                    case 6:
+                        envelope.hpkeAlg = input.readString();
+                        break;
+                    case 7:
+                        envelope.ciphertextSha256 = RgCryptoBase64.encode(input.readByteArray());
+                        break;
+                    case 8:
+                        envelope.dialogScope = input.readString();
+                        break;
+                    case 9:
+                        envelope.senderId = input.readString();
+                        break;
+                    case 10:
+                        envelope.senderSigningKid = input.readString();
+                        break;
+                    case 11:
+                        envelope.msgNonce = RgCryptoBase64.encode(input.readByteArray());
+                        break;
+                    case 12:
+                        envelope.createdAtMs = input.readInt64();
+                        break;
+                    case 13:
+                        envelope.ciphertext = RgCryptoBase64.encode(input.readByteArray());
+                        break;
+                    case 14:
+                        envelope.signature = RgCryptoBase64.encode(input.readByteArray());
+                        break;
+                    case 15:
+                        envelope.senderSigningKeysetJson = input.readString();
+                        break;
+                    default:
+                        input.skipField(tag);
+                        break;
+                }
+            }
+        } catch (Exception e) {
+            throw new GeneralSecurityException("Failed to decode binary envelope", e);
+        }
+        return envelope;
     }
 
     @JsonIgnore
@@ -376,6 +508,62 @@ public final class RgCryptoEnvelope {
         } catch (Exception e) {
             throw new GeneralSecurityException("Failed to build recipient bytes", e);
         }
+    }
+
+    private static byte[] recipientEntryBinaryBytes(RecipientEntry entry) throws GeneralSecurityException {
+        if (entry == null) {
+            throw new GeneralSecurityException("Recipient entry missing");
+        }
+        if (entry.wrappedKey == null) {
+            throw new GeneralSecurityException("Recipient wrapped key missing");
+        }
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            CodedOutputStream output = CodedOutputStream.newInstance(out);
+            output.writeInt32(1, entry.recipientKeyId);
+            output.writeByteArray(2, RgCryptoBase64.decode(entry.wrappedKey));
+            if (entry.recipientKid != null) {
+                output.writeString(3, entry.recipientKid);
+            }
+            output.flush();
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new GeneralSecurityException("Failed to build recipient bytes", e);
+        }
+    }
+
+    private static RecipientEntry recipientEntryFromBinary(byte[] data) throws GeneralSecurityException {
+        if (data == null) {
+            throw new GeneralSecurityException("Recipient entry missing");
+        }
+        RecipientEntry entry = new RecipientEntry();
+        try {
+            CodedInputStream input = CodedInputStream.newInstance(data);
+            while (!input.isAtEnd()) {
+                int tag = input.readTag();
+                if (tag == 0) {
+                    break;
+                }
+                int fieldNumber = WireFormat.getTagFieldNumber(tag);
+                switch (fieldNumber) {
+                    case 1:
+                        entry.recipientKeyId = input.readInt32();
+                        break;
+                    case 2:
+                        entry.wrappedKey = RgCryptoBase64.encode(input.readByteArray());
+                        break;
+                    case 3:
+                        entry.recipientKid = input.readString();
+                        break;
+                    default:
+                        input.skipField(tag);
+                        break;
+                }
+            }
+        } catch (Exception e) {
+            throw new GeneralSecurityException("Failed to parse recipient bytes", e);
+        }
+        return entry;
     }
 
     public static final class RecipientEntry {
