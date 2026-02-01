@@ -9,6 +9,7 @@ public final class RgCryptoConstants {
     public static final String FILE_EXT = ".rgcrypt";
     public static final String FILE_MIME = "application/octet-stream";
     public static final int MAX_FILE_BYTES = 1024 * 1024;
+    public static final int MAX_STREAM_FILE_BYTES = 50 * 1024 * 1024;
     public static final String CONTENT_AUTHORITY_SUFFIX = ".rgcrypt";
     public static final String CONTENT_PATH = "rgcrypt";
     public static final String HPKE_TEMPLATE = "DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_AES_256_GCM";
@@ -16,6 +17,7 @@ public final class RgCryptoConstants {
     public static final String AEAD_ALG = "AES256_GCM";
     public static final String STREAMING_AEAD_TEMPLATE = "AES256_GCM_HKDF_4KB";
     public static final String TYPE_IMAGE = "IMAGE";
+    public static final String TYPE_FILE = "FILE";
 
     private RgCryptoConstants() {
     }
