@@ -200,6 +200,7 @@ import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeyRequest;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeys;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoRecipientPublic;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoKeysetStorage;
+import org.telegram.messenger.partisan.rgcrypto.RgCryptoStreamingMeta;
 import org.telegram.messenger.partisan.rgcrypto.RgCryptoTextCodec;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoKeyringStore;
 import org.telegram.messenger.partisan.rgcrypto.storage.RgCryptoTrustState;
@@ -524,14 +525,133 @@ public class ChatActivity extends BaseFragment implements
             AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
             return;
         }
-        if (file.length() > RgCryptoConstants.MAX_FILE_BYTES) {
-            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge));
-            return;
-        }
         Utilities.globalQueue.postRunnable(() -> {
             RgCryptoDecryptResult result;
             try {
-                byte[] data = new byte[(int) file.length()];
+                long fileSize = file.length();
+                int version;
+                try (FileInputStream in = new FileInputStream(file)) {
+                    version = RgCryptoFileCodec.readVersion(in);
+                    if (version == RgCryptoFileCodec.STREAM_VERSION) {
+                        if (fileSize > RgCryptoConstants.MAX_STREAM_FILE_BYTES) {
+                            AndroidUtilities.runOnUIThread(() ->
+                                    AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge)));
+                            return;
+                        }
+                        RgCrypto.initialize();
+                        RgCryptoEnvelope envelope = RgCryptoFileCodec.readStreamingEnvelope(in);
+                        String scope = RgCryptoDialogScope.fromMessageObject(messageObject);
+                        RgCryptoKeyringCache cache = RgCryptoKeyringCache.get(ApplicationLoader.applicationContext, currentAccount);
+                        boolean isImage = RgCryptoConstants.TYPE_IMAGE.equals(envelope.type);
+                        boolean isFile = RgCryptoConstants.TYPE_FILE.equals(envelope.type);
+                        if (envelope.senderId != null && envelope.senderSigningKid != null) {
+                            boolean hasAny = cache.hasAnySigningKeys(envelope.senderId);
+                            boolean hasKid = cache.hasSigningKid(envelope.senderId, envelope.senderSigningKid);
+                            if (hasAny && !hasKid) {
+                                result = RgCryptoDecryptResult.needKey(envelope.senderSigningKid, envelope.senderId,
+                                        RgCryptoDecryptResult.SignatureState.UNKNOWN);
+                                RgCryptoDecryptResult finalResult = result;
+                                AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+                                return;
+                            }
+                        }
+                        com.google.crypto.tink.KeysetHandle myHpkeKeyset =
+                                RgCryptoKeysetStorage.getOrCreateHpkeKeyset(ApplicationLoader.applicationContext, currentAccount, null);
+                        result = RgCryptoTextCodec.unpackEnvelope(
+                                envelope,
+                                scope,
+                                myHpkeKeyset,
+                                (senderId, signingKid) -> cache.getSigningKeyset(senderId, signingKid)
+                        );
+                        if (result == null || result.status != RgCryptoDecryptResult.Status.OK) {
+                            RgCryptoDecryptResult finalResult = result;
+                            AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+                            return;
+                        }
+                        byte[] metaPayload = envelope.decryptPayload(myHpkeKeyset);
+                        RgCryptoStreamingMeta meta;
+                        try {
+                            meta = RgCryptoStreamingMeta.fromPayloadOrLegacy(metaPayload);
+                        } catch (Exception e) {
+                            result = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, envelope.senderId,
+                                    result.signatureState);
+                            RgCryptoDecryptResult finalResult = result;
+                            AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+                            return;
+                        }
+                        byte[] streamingKeysetBytes;
+                        try {
+                            streamingKeysetBytes = meta.keysetBytes();
+                        } catch (Exception e) {
+                            result = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, envelope.senderId,
+                                    result.signatureState);
+                            RgCryptoDecryptResult finalResult = result;
+                            AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+                            return;
+                        }
+                        com.google.crypto.tink.KeysetHandle streamingKeyset =
+                                org.telegram.messenger.partisan.rgcrypto.RgCryptoStreaming.parseKeyset(streamingKeysetBytes);
+                        if (isImage) {
+                            Bitmap bitmap;
+                            try (java.io.InputStream dec =
+                                         org.telegram.messenger.partisan.rgcrypto.RgCryptoStreaming.decryptingStream(
+                                                 streamingKeyset, in, envelope.aadBytes())) {
+                                bitmap = BitmapFactory.decodeStream(dec);
+                            }
+                            if (bitmap == null) {
+                                result = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.DECRYPT_FAIL, envelope.senderId,
+                                        result.signatureState);
+                                RgCryptoDecryptResult finalResult = result;
+                                AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+                                return;
+                            }
+                            RgCryptoStreamingMeta finalMeta = meta;
+                            AndroidUtilities.runOnUIThread(() ->
+                                    showRgcryptDecryptedImage(bitmap, file, envelope, finalMeta));
+                            return;
+                        } else if (isFile) {
+                            String fallbackName = "rgcrypt_file_" + System.currentTimeMillis();
+                            String outputName = resolveMetaName(meta, fallbackName);
+                            String outputMime = resolveMetaMime(meta);
+                            File out = MediaController.createFileInCache(outputName, null);
+                            if (out == null) {
+                                result = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.DECRYPT_FAIL, envelope.senderId,
+                                        result.signatureState);
+                                RgCryptoDecryptResult finalResult = result;
+                                AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+                                return;
+                            }
+                            try (FileOutputStream outStream = new FileOutputStream(out);
+                                 java.io.InputStream dec =
+                                         org.telegram.messenger.partisan.rgcrypto.RgCryptoStreaming.decryptingStream(
+                                                 streamingKeyset, in, envelope.aadBytes())) {
+                                byte[] buffer = new byte[8192];
+                                int read;
+                                while ((read = dec.read(buffer)) != -1) {
+                                    outStream.write(buffer, 0, read);
+                                }
+                            }
+                            File finalOut = out;
+                            AndroidUtilities.runOnUIThread(() -> saveRgcryptFileToDownloads(finalOut, outputName, outputMime));
+                            return;
+                        } else {
+                            result = RgCryptoDecryptResult.error(RgCryptoDecryptResult.Status.PARSE_FAIL, envelope.senderId,
+                                    result.signatureState);
+                            RgCryptoDecryptResult finalResult = result;
+                            AndroidUtilities.runOnUIThread(() -> showRgcryptDecryptResult(finalResult));
+                            return;
+                        }
+                    }
+                }
+                if (version != 2) {
+                    throw new IOException("unsupported rgcrypt version");
+                }
+                if (fileSize > RgCryptoConstants.MAX_FILE_BYTES) {
+                    AndroidUtilities.runOnUIThread(() ->
+                            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge)));
+                    return;
+                }
+                byte[] data = new byte[(int) fileSize];
                 try (FileInputStream in = new FileInputStream(file)) {
                     int offset = 0;
                     while (offset < data.length) {
@@ -658,8 +778,197 @@ public class ChatActivity extends BaseFragment implements
         new AlertDialog.Builder(activity)
                 .setTitle("RGCRYPT")
                 .setView(container)
+                .setPositiveButton(LocaleController.getString(R.string.SaveToGallery), (dialog, which) ->
+                        saveRgcryptImageToGallery(data))
                 .setNegativeButton(LocaleController.getString(R.string.Close), null)
                 .show();
+    }
+
+    private void showRgcryptDecryptedImage(Bitmap bitmap, File encryptedFile, RgCryptoEnvelope envelope,
+                                           RgCryptoStreamingMeta meta) {
+        if (bitmap == null) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        Activity activity = getParentActivity();
+        if (activity == null) {
+            return;
+        }
+        ImageView imageView = new ImageView(activity);
+        imageView.setAdjustViewBounds(true);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        imageView.setImageBitmap(bitmap);
+        int padding = AndroidUtilities.dp(8);
+        FrameLayout container = new FrameLayout(activity);
+        container.setPadding(padding, padding, padding, padding);
+        container.addView(imageView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        new AlertDialog.Builder(activity)
+                .setTitle("RGCRYPT")
+                .setView(container)
+                .setPositiveButton(LocaleController.getString(R.string.SaveToGallery), (dialog, which) ->
+                        saveRgcryptImageToGalleryStreaming(encryptedFile, envelope, meta))
+                .setNegativeButton(LocaleController.getString(R.string.Close), null)
+                .show();
+    }
+
+    private void saveRgcryptImageToGallery(byte[] data) {
+        if (data == null || data.length == 0) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        String ext = detectImageExt(data);
+        String mime = detectImageMime(ext);
+        File out = MediaController.createFileInCache(
+                "rgcrypt_img_" + System.currentTimeMillis() + "." + ext, "." + ext);
+        if (out == null) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        try (FileOutputStream outStream = new FileOutputStream(out)) {
+            outStream.write(data);
+        } catch (Exception e) {
+            FileLog.e(e);
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        MediaController.saveFile(out.getAbsolutePath(), getContext(), 0, null, mime, uri -> {
+            BulletinFactory.createSaveToGalleryBulletin(this, false, themeDelegate).show();
+        });
+    }
+
+    private void saveRgcryptImageToGalleryStreaming(File encryptedFile, RgCryptoEnvelope envelope,
+                                                    RgCryptoStreamingMeta meta) {
+        if (encryptedFile == null || !encryptedFile.exists() || envelope == null || meta == null) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        try {
+            byte[] streamingKeysetBytes = meta.keysetBytes();
+            com.google.crypto.tink.KeysetHandle streamingKeyset =
+                    org.telegram.messenger.partisan.rgcrypto.RgCryptoStreaming.parseKeyset(streamingKeysetBytes);
+            try (FileInputStream in = new FileInputStream(encryptedFile)) {
+                int version = RgCryptoFileCodec.readVersion(in);
+                if (version != RgCryptoFileCodec.STREAM_VERSION) {
+                    AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+                    return;
+                }
+                RgCryptoFileCodec.readStreamingEnvelope(in);
+                try (java.io.InputStream dec =
+                             org.telegram.messenger.partisan.rgcrypto.RgCryptoStreaming.decryptingStream(
+                                     streamingKeyset, in, envelope.aadBytes());
+                     java.io.BufferedInputStream bis = new java.io.BufferedInputStream(dec)) {
+                    bis.mark(16);
+                    byte[] sniff = new byte[16];
+                    int n = bis.read(sniff);
+                    bis.reset();
+                    if (n > 0 && n < sniff.length) {
+                        byte[] tmp = new byte[n];
+                        System.arraycopy(sniff, 0, tmp, 0, n);
+                        sniff = tmp;
+                    }
+                    String ext = detectImageExt(sniff);
+                    String mime = detectImageMime(ext);
+                    File out = MediaController.createFileInCache(
+                            "rgcrypt_img_" + System.currentTimeMillis() + "." + ext, "." + ext);
+                    if (out == null) {
+                        AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+                        return;
+                    }
+                    try (FileOutputStream outStream = new FileOutputStream(out)) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = bis.read(buffer)) != -1) {
+                            outStream.write(buffer, 0, read);
+                        }
+                    }
+                    MediaController.saveFile(out.getAbsolutePath(), getContext(), 0, null, mime, uri -> {
+                        BulletinFactory.createSaveToGalleryBulletin(this, false, themeDelegate).show();
+                    });
+                }
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+        }
+    }
+
+    private static String detectImageExt(byte[] data) {
+        if (data == null || data.length < 12) {
+            return "jpg";
+        }
+        if ((data[0] & 0xFF) == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47) {
+            return "png";
+        }
+        if ((data[0] & 0xFF) == 0xFF && (data[1] & 0xFF) == 0xD8 && (data[2] & 0xFF) == 0xFF) {
+            return "jpg";
+        }
+        if (data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46 &&
+                data[8] == 0x57 && data[9] == 0x45 && data[10] == 0x42 && data[11] == 0x50) {
+            return "webp";
+        }
+        return "jpg";
+    }
+
+    private static String detectImageMime(String ext) {
+        if ("png".equals(ext)) {
+            return "image/png";
+        }
+        if ("webp".equals(ext)) {
+            return "image/webp";
+        }
+        return "image/jpeg";
+    }
+
+    private static String sanitizeFileName(String name, String fallback) {
+        String candidate = TextUtils.isEmpty(name) ? fallback : name;
+        if (TextUtils.isEmpty(candidate)) {
+            candidate = "rgcrypt_file";
+        }
+        candidate = candidate.replace('/', '_').replace('\\', '_');
+        return candidate;
+    }
+
+    private static String guessMimeType(String name) {
+        if (TextUtils.isEmpty(name)) {
+            return RgCryptoConstants.FILE_MIME;
+        }
+        String ext = FileLoader.getFileExtension(new File(name));
+        if (!TextUtils.isEmpty(ext)) {
+            String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.toLowerCase(Locale.ROOT));
+            if (!TextUtils.isEmpty(mime)) {
+                return mime;
+            }
+        }
+        return RgCryptoConstants.FILE_MIME;
+    }
+
+    private static String resolveMetaName(RgCryptoStreamingMeta meta, String fallback) {
+        return sanitizeFileName(meta != null ? meta.name : null, fallback);
+    }
+
+    private static String resolveMetaMime(RgCryptoStreamingMeta meta) {
+        if (meta != null && !TextUtils.isEmpty(meta.mime)) {
+            return meta.mime;
+        }
+        if (meta != null && !TextUtils.isEmpty(meta.name)) {
+            return guessMimeType(meta.name);
+        }
+        return RgCryptoConstants.FILE_MIME;
+    }
+
+    private void saveRgcryptFileToDownloads(File decryptedFile, String name, String mime) {
+        if (decryptedFile == null || !decryptedFile.exists()) {
+            AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
+            return;
+        }
+        String safeName = sanitizeFileName(name, "rgcrypt_file_" + System.currentTimeMillis());
+        String safeMime = TextUtils.isEmpty(mime) ? RgCryptoConstants.FILE_MIME : mime;
+        File finalFile = decryptedFile;
+        MediaController.saveFile(finalFile.getAbsolutePath(), getContext(), 2, safeName, safeMime, uri -> {
+            BulletinFactory.of(this).createDownloadBulletin(BulletinFactory.FileType.UNKNOWN, themeDelegate).show();
+            finalFile.delete();
+        });
     }
 
     private Dialog closeChatDialog;
@@ -14287,11 +14596,20 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void didSelectFiles(ArrayList<String> files, String caption, ArrayList<TLRPC.MessageEntity> captionEntities, ArrayList<MessageObject> fmessages, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, long payStars) {
-        didSelectFiles(files, caption, captionEntities, fmessages, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars, null);
+        didSelectFilesInternal(files, caption, captionEntities, fmessages, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars, null, false);
     }
 
     @Override
     public void didSelectFiles(ArrayList<String> files, String caption, ArrayList<TLRPC.MessageEntity> captionEntities, ArrayList<MessageObject> fmessages, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, long payStars, Integer autoDeleteDelay) {
+        didSelectFilesInternal(files, caption, captionEntities, fmessages, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars, autoDeleteDelay, false);
+    }
+
+    @Override
+    public void didSelectFiles(ArrayList<String> files, String caption, ArrayList<TLRPC.MessageEntity> captionEntities, ArrayList<MessageObject> fmessages, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, long payStars, Integer autoDeleteDelay, boolean forceRgcrypt) {
+        didSelectFilesInternal(files, caption, captionEntities, fmessages, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars, autoDeleteDelay, forceRgcrypt);
+    }
+
+    private void didSelectFilesInternal(ArrayList<String> files, String caption, ArrayList<TLRPC.MessageEntity> captionEntities, ArrayList<MessageObject> fmessages, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, long payStars, Integer autoDeleteDelay, boolean forceRgcrypt) {
         fillEditingMediaWithCaption(caption, null);
         if (checkSlowModeAlert()) {
             if (!fmessages.isEmpty() && !TextUtils.isEmpty(caption)) {
@@ -14306,6 +14624,26 @@ public class ChatActivity extends BaseFragment implements
                 caption = null;
             }
             getSendMessagesHelper().sendMessage(fmessages, dialog_id, false, false, true, 0, 0, null, -1, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+            if (forceRgcrypt && isRgcryptMediaEnabled() && editingMessageObject == null && files != null && !files.isEmpty()) {
+                boolean sentAny = false;
+                for (int i = 0; i < files.size(); i++) {
+                    String path = files.get(i);
+                    CharSequence fileCaption = i == 0 ? caption : null;
+                    ArrayList<TLRPC.MessageEntity> fileEntities = i == 0 ? captionEntities : null;
+                    boolean sent = sendRgcryptFileFromPath(path, fileCaption, fileEntities, notify, scheduleDate,
+                            scheduleRepeatPeriod, effectId, invertMedia, payStars, getSendMessageSuggestionParams(),
+                            autoDeleteDelay);
+                    if (!sent) {
+                        sentAny = false;
+                        break;
+                    }
+                    sentAny = true;
+                }
+                if (sentAny) {
+                    afterMessageSend();
+                }
+                return;
+            }
             SendMessagesHelper.prepareSendingDocuments(getAccountInstance(), files, files, null, caption, captionEntities, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, null, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams(), autoDeleteDelay);
             afterMessageSend();
         }
@@ -20267,6 +20605,27 @@ public class ChatActivity extends BaseFragment implements
                                              boolean notify, int scheduleDate, int scheduleRepeatPeriod,
                                              long effectId, boolean invertMedia, long payStars,
                                              MessageSuggestionParams suggestionParams, Integer autoDeleteDelay) {
+        return sendRgcryptFileFromPathInternal(path, caption, captionEntities, notify, scheduleDate,
+                scheduleRepeatPeriod, effectId, invertMedia, payStars, suggestionParams, autoDeleteDelay,
+                RgCryptoConstants.TYPE_IMAGE);
+    }
+
+    private boolean sendRgcryptFileFromPath(String path, CharSequence caption,
+                                            ArrayList<TLRPC.MessageEntity> captionEntities,
+                                            boolean notify, int scheduleDate, int scheduleRepeatPeriod,
+                                            long effectId, boolean invertMedia, long payStars,
+                                            MessageSuggestionParams suggestionParams, Integer autoDeleteDelay) {
+        return sendRgcryptFileFromPathInternal(path, caption, captionEntities, notify, scheduleDate,
+                scheduleRepeatPeriod, effectId, invertMedia, payStars, suggestionParams, autoDeleteDelay,
+                RgCryptoConstants.TYPE_FILE);
+    }
+
+    private boolean sendRgcryptFileFromPathInternal(String path, CharSequence caption,
+                                                    ArrayList<TLRPC.MessageEntity> captionEntities,
+                                                    boolean notify, int scheduleDate, int scheduleRepeatPeriod,
+                                                    long effectId, boolean invertMedia, long payStars,
+                                                    MessageSuggestionParams suggestionParams, Integer autoDeleteDelay,
+                                                    String type) {
         if (TextUtils.isEmpty(path)) {
             return false;
         }
@@ -20275,36 +20634,50 @@ public class ChatActivity extends BaseFragment implements
             AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
             return false;
         }
-        if (src.length() > RgCryptoConstants.MAX_FILE_BYTES) {
+        if (src.length() > RgCryptoConstants.MAX_STREAM_FILE_BYTES) {
             AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge));
             return false;
         }
         try {
-            byte[] imageBytes = readFileBytes(src);
             RgcryptMediaParams params = buildRgcryptMediaParams();
+            com.google.crypto.tink.KeysetHandle streamingKeyset =
+                    org.telegram.messenger.partisan.rgcrypto.RgCryptoStreaming.generateStreamingKeyset();
+            byte[] streamingKeysetBytes =
+                    org.telegram.messenger.partisan.rgcrypto.RgCryptoStreaming.serializeKeyset(streamingKeyset);
+            String fallbackName = (RgCryptoConstants.TYPE_IMAGE.equals(type) ? "rgcrypt_image_" : "rgcrypt_file_")
+                    + System.currentTimeMillis();
+            String originalName = sanitizeFileName(src.getName(), fallbackName);
+            String mime = guessMimeType(originalName);
+            RgCryptoStreamingMeta meta = RgCryptoStreamingMeta.create(streamingKeysetBytes, originalName, mime);
             RgCryptoEnvelope envelope = RgCryptoEnvelope.packBytes(
-                    RgCryptoConstants.TYPE_IMAGE,
-                    imageBytes,
+                    type,
+                    meta.toPayload(),
                     params.dialogScope,
                     params.senderId,
                     params.signingKeyset,
                     params.recipients
             );
-            byte[] payload = RgCryptoFileCodec.encodeV2(envelope);
-            if (payload.length > RgCryptoConstants.MAX_FILE_BYTES) {
-                AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.FileTooLarge));
-                return false;
-            }
             File out = MediaController.createFileInCache(
-                    "rgcrypt_img_" + System.currentTimeMillis() + RgCryptoConstants.FILE_EXT,
+                    (RgCryptoConstants.TYPE_IMAGE.equals(type) ? "rgcrypt_img_" : "rgcrypt_file_")
+                            + System.currentTimeMillis() + RgCryptoConstants.FILE_EXT,
                     RgCryptoConstants.FILE_EXT
             );
             if (out == null) {
                 AlertsCreator.showSimpleAlert(this, "RGCRYPT", LocaleController.getString(R.string.ErrorOccurred));
                 return false;
             }
-            try (FileOutputStream outStream = new FileOutputStream(out)) {
-                outStream.write(payload);
+            try (FileInputStream in = new FileInputStream(src);
+                 FileOutputStream outStream = new FileOutputStream(out)) {
+                RgCryptoFileCodec.writeStreamingHeader(outStream, envelope);
+                try (java.io.OutputStream enc =
+                             org.telegram.messenger.partisan.rgcrypto.RgCryptoStreaming.encryptingStream(
+                                     streamingKeyset, outStream, envelope.aadBytes())) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        enc.write(buffer, 0, read);
+                    }
+                }
             }
             ArrayList<String> paths = new ArrayList<>();
             ArrayList<String> originalPaths = new ArrayList<>();
@@ -20348,24 +20721,6 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    private byte[] readFileBytes(File file) throws IOException {
-        int size = (int) file.length();
-        byte[] data = new byte[size];
-        try (FileInputStream in = new FileInputStream(file)) {
-            int offset = 0;
-            while (offset < size) {
-                int read = in.read(data, offset, size - offset);
-                if (read <= 0) {
-                    break;
-                }
-                offset += read;
-            }
-            if (offset != size) {
-                throw new IOException("short read");
-            }
-        }
-        return data;
-    }
     private void selectRgcryptPeerId(RgcryptPeerIdCallback callback) {
         if (callback == null) {
             return;

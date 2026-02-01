@@ -100,6 +100,10 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
             didSelectFiles(files, caption, captionEntities, fmessages, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars);
         }
 
+        default void didSelectFiles(ArrayList<String> files, String caption, ArrayList<TLRPC.MessageEntity> captionEntities, ArrayList<MessageObject> fmessages, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, long payStars, Integer autoDeleteDelay, boolean forceRgcrypt) {
+            didSelectFiles(files, caption, captionEntities, fmessages, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars, autoDeleteDelay);
+        }
+
         default void didSelectPhotos(ArrayList<SendMessagesHelper.SendingMediaInfo> photos, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars, Integer autoDeleteDelay) {
 
         }
@@ -764,6 +768,11 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
 
     @Override
     public boolean sendSelectedItems(boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, Integer autoDeleteDelay) {
+        return sendSelectedItems(notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, autoDeleteDelay, false);
+    }
+
+    @Override
+    public boolean sendSelectedItems(boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, Integer autoDeleteDelay, boolean forceRgcrypt) {
         if (selectedFiles.size() == 0 && selectedMessages.size() == 0 || delegate == null || sendPressed) {
             return false;
         }
@@ -781,7 +790,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
 
         return AlertsCreator.ensurePaidMessageConfirmation(parentAlert.currentAccount, parentAlert.getDialogId(), (!TextUtils.isEmpty(caption) ? 1 : 0) + files.size() + parentAlert.getAdditionalMessagesCount(), payStars -> {
             sendPressed = true;
-            delegate.didSelectFiles(files, caption, captionEntities, fmessages, notify, scheduleDate, 0, effectId, invertMedia, payStars, autoDeleteDelay);
+            delegate.didSelectFiles(files, caption, captionEntities, fmessages, notify, scheduleDate, 0, effectId, invertMedia, payStars, autoDeleteDelay, forceRgcrypt);
             parentAlert.dismiss(true);
         });
     }
