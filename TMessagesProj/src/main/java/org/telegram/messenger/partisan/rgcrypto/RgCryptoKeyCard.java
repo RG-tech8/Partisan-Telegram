@@ -7,8 +7,10 @@ import com.google.crypto.tink.PublicKeySign;
 import com.google.crypto.tink.PublicKeyVerify;
 import com.google.crypto.tink.RegistryConfiguration;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -108,10 +110,48 @@ public final class RgCryptoKeyCard {
 
     @JsonIgnore
     public String fingerprintSha256() throws GeneralSecurityException {
+        return RgCryptoBase64.encode(fingerprintBytes());
+    }
+
+    @JsonIgnore
+    public String safetyNumber() throws GeneralSecurityException {
+        try {
+            byte[] hash = fingerprintBytes();
+            BigInteger num = new BigInteger(1, hash);
+            BigInteger mod = BigInteger.TEN.pow(60);
+            String digits = num.mod(mod).toString();
+            StringBuilder padded = new StringBuilder(60);
+            for (int i = digits.length(); i < 60; i++) {
+                padded.append('0');
+            }
+            padded.append(digits);
+            String value = padded.toString();
+            StringBuilder out = new StringBuilder(80);
+            int group = 0;
+            for (int i = 0; i < value.length(); i += 10) {
+                if (i > 0) {
+                    if (group == 3) {
+                        out.append('\n');
+                        group = 0;
+                    } else {
+                        out.append(' ');
+                    }
+                }
+                out.append(value, i, i + 10);
+                group++;
+            }
+            return out.toString();
+        } catch (Exception e) {
+            throw new GeneralSecurityException("safety number failed", e);
+        }
+    }
+
+    @JsonIgnore
+    private byte[] fingerprintBytes() throws GeneralSecurityException {
         try {
             byte[] data = (signingKeysetJson + "|" + encryptionKeysetJson).getBytes(StandardCharsets.UTF_8);
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            return RgCryptoBase64.encode(digest.digest(data));
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return digest.digest(data);
         } catch (Exception e) {
             throw new GeneralSecurityException("fingerprint failed", e);
         }

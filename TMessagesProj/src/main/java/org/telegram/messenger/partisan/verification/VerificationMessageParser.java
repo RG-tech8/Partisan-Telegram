@@ -29,10 +29,16 @@ public class VerificationMessageParser {
                     processControlLine(line.substring(1).trim());
                 } else if (currentChatType > 0) {
                     if (line.startsWith("+")) {
-                        result.chatsToAdd.add(parseChatInfo(line.substring(1)));
+                        String payload = line.substring(1).trim();
+                        if (!payload.isEmpty()) {
+                            result.chatsToAdd.add(parseChatInfo(payload));
+                        }
                     } else if (line.startsWith("-")) {
-                        VerificationChatInfo info = parseChatInfo(line.substring(1));
-                        result.chatsToRemove.add(info);
+                        String payload = line.substring(1).trim();
+                        if (!payload.isEmpty()) {
+                            VerificationChatInfo info = parseChatInfo(payload);
+                            result.chatsToRemove.add(info);
+                        }
                     }
                 }
             }
@@ -45,13 +51,14 @@ public class VerificationMessageParser {
     private VerificationChatInfo parseChatInfo(String chatInfoStr) {
         VerificationChatInfo info = new VerificationChatInfo();
         info.type = currentChatType;
-        if (chatInfoStr.contains("=")) {
-            String[] parts = chatInfoStr.split("=");
-            info.username = Utils.removeUsernamePrefixed(parts[0]);
-            info.chatId = Math.abs(Long.parseLong(parts[1]));
+        String normalized = chatInfoStr.trim();
+        if (normalized.contains("=")) {
+            String[] parts = normalized.split("=", 2);
+            info.username = Utils.removeUsernamePrefixed(parts[0].trim());
+            info.chatId = Math.abs(Long.parseLong(parts[1].trim()));
         } else {
             info.username = null;
-            info.chatId = Math.abs(Long.parseLong(chatInfoStr));
+            info.chatId = Math.abs(Long.parseLong(normalized));
         }
         return info;
     }
