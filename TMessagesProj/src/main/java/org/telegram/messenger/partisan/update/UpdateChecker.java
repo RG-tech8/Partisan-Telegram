@@ -21,8 +21,8 @@ public class UpdateChecker extends AbstractChannelChecker {
         void onUpdateResult(UpdateData update);
     }
 
-    private final long CYBER_PARTISAN_SECURITY_TG_CHANNEL_ID = BuildVars.isAlphaApp() ? -1716369838 : -1808776994;  // For checking for updates
-    private final String CYBER_PARTISAN_SECURITY_TG_CHANNEL_USERNAME = BuildVars.isAlphaApp() ? "ptg_update_test" : "ptgprod";
+    private final long CYBER_PARTISAN_SECURITY_TG_CHANNEL_ID = -3717986298L;  // For checking for updates
+    private final String CYBER_PARTISAN_SECURITY_TG_CHANNEL_USERNAME = "rgupdatesahdbhjwqbdfjwhqbdfwqjhf";
     private static final int CURRENT_FORMAT_VERSION = 1;
     private UpdateCheckedDelegate delegate;
 
