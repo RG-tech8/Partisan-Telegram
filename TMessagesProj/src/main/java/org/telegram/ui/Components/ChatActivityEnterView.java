@@ -6482,6 +6482,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             AndroidUtilities.cancelRunOnUIThread(hideKeyboardRunnable);
             hideKeyboardRunnable = null;
         }
+        updateRgcryptUiVisibility();
 
         if (hasBotWebView() && botCommandsMenuIsShowing()) {
             return;
@@ -8775,6 +8776,9 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     private void setRgcryptEnabled(boolean enabled) {
         if (!isRgcryptUiAllowed()) {
+            if (isRgcryptHiddenByFakePasscode()) {
+                return;
+            }
             enabled = false;
         }
         rgcryptEnabled = enabled;
@@ -8793,8 +8797,16 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     private boolean isRgcryptUiAllowed() {
+        return isRgcryptGloballyAllowed() && !isRgcryptHiddenByFakePasscode();
+    }
+
+    private boolean isRgcryptGloballyAllowed() {
         SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
         return prefs.getBoolean(RgCryptoConstants.PREF_AUTO_DECRYPT, true);
+    }
+
+    private boolean isRgcryptHiddenByFakePasscode() {
+        return FakePasscodeUtils.isFakePasscodeActivated();
     }
 
     private String rgcryptPrefKey() {
@@ -8814,7 +8826,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (rgcryptModeButton != null) {
             rgcryptModeButton.setVisibility(allowed && rgcryptEnabled ? VISIBLE : GONE);
         }
-        if (!allowed && rgcryptEnabled) {
+        if (!isRgcryptGloballyAllowed() && rgcryptEnabled) {
             rgcryptEnabled = false;
             SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
             prefs.edit().putBoolean(rgcryptPrefKey(), false).apply();

@@ -4472,11 +4472,17 @@ public class ChatActivity extends BaseFragment implements
                         TopicsFragment.prepareToSwitchAnimation(ChatActivity.this);
                     }
                 } else if (id == RGCRYPT_SEND_KEY_MENU) {
-                    sendMyKeyCard();
+                    if (isRgcryptUiAllowed()) {
+                        sendMyKeyCard();
+                    }
                 } else if (id == RGCRYPT_RESET_KEYS_MENU) {
-                    showRgcryptResetKeysDialog();
+                    if (isRgcryptUiAllowed()) {
+                        showRgcryptResetKeysDialog();
+                    }
                 } else if (id == RGCRYPT_KEY_MANAGER_MENU) {
-                    showRgcryptKeyManager();
+                    if (isRgcryptUiAllowed()) {
+                        showRgcryptKeyManager();
+                    }
                 } else if (id == OPTION_RGCRYPT_IMPORT_KEYCARD || id == OPTION_RGCRYPT_SHOW_FINGERPRINT) {
                     MessageObject messageObject = getSingleSelectedMessageObject();
                     if (messageObject != null) {
@@ -20576,6 +20582,10 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private boolean isRgcryptUiAllowed() {
+        return isRgcryptGloballyAllowed() && !FakePasscodeUtils.isFakePasscodeActivated();
+    }
+
+    private boolean isRgcryptGloballyAllowed() {
         SharedPreferences prefs = ApplicationLoader.applicationContext.getSharedPreferences("rgcrypto", Context.MODE_PRIVATE);
         return prefs.getBoolean(org.telegram.messenger.partisan.rgcrypto.RgCryptoConstants.PREF_AUTO_DECRYPT, true);
     }
