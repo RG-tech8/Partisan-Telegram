@@ -284,6 +284,8 @@ public class NotificationCenter {
     public static final int musicListLoaded = totalEvents++;
     public static final int musicIdsLoaded = totalEvents++;
     public static final int profileMusicUpdated = totalEvents++;
+    public static final int updatedChatRanks = totalEvents++;
+    public static final int joinedGroup = totalEvents++;
 
     //partisan
     public static final int dialogDeletedByAction = totalEvents++;
@@ -295,6 +297,8 @@ public class NotificationCenter {
     public static final int accountHidingChanged = totalEvents++;
     public static final int searchCleared = totalEvents++;
     public static final int savedChannelsButtonStateChanged = totalEvents++;
+    public static final int partisanTelegramSettingsButtonStateChanged = totalEvents++;
+    public static final int savedChannelAdded = totalEvents++;
     public static final int telegramDataReceived = totalEvents++;
     public static final int telegramDataReceivingError = totalEvents++;
     public static final int cacheClearedByPtg = totalEvents++;
@@ -306,6 +310,7 @@ public class NotificationCenter {
     public static final int encryptedGroupMembersAdded = totalEvents++;
     public static final int onFileProtectedDbCleared = totalEvents++;
     public static final int voiceChangingStateChanged = totalEvents++;
+    public static final int passwordlessModeActivated = totalEvents++;
 
 
     //global
@@ -359,6 +364,7 @@ public class NotificationCenter {
     public static final int shouldKillApp = totalEvents++;
     public static final int shouldHideApp = totalEvents++;
     public static final int dialogsUnreadReactionsCounterChanged = totalEvents++;
+    public static final int dialogsUnreadPollVotesCounterChanged = totalEvents++;
     public static final int onDatabaseOpened = totalEvents++;
     public static final int onDownloadingFilesChanged = totalEvents++;
     public static final int onActivityResultReceived = totalEvents++;
@@ -398,6 +404,8 @@ public class NotificationCenter {
     public static final int botForumDraftUpdate = totalEvents++;
     public static final int botForumDraftDelete = totalEvents++;
     public static final int tlSchemeParseException = totalEvents++;
+    public static final int callTabsVisibleToggled = totalEvents++;
+    public static final int contactsPermissionBadgeCheck = totalEvents++;
 
     public static boolean alreadyLogged;
 
@@ -715,6 +723,14 @@ public class NotificationCenter {
                 }
                 addAfterBroadcast.clear();
             }
+        }
+    }
+
+    public void updateObserver(boolean add, NotificationCenterDelegate observer, int id) {
+        if (add) {
+            addObserver(observer, id);
+        } else {
+            removeObserver(observer, id);
         }
     }
 

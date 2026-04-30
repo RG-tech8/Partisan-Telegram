@@ -80,6 +80,7 @@ public class UserConfig extends BaseController {
     public boolean notificationsSignUpSettingsLoaded;
     public boolean syncContacts = true;
     public boolean suggestContacts = true;
+    public boolean showCallsTab;
     public boolean hasSecureData;
     public int loginTime;
     public TLRPC.TL_help_termsOfService unacceptedTermsOfService;
@@ -328,6 +329,7 @@ public class UserConfig extends BaseController {
                     editor.putBoolean("contactsReimported", contactsReimported);
                     editor.putInt("loginTime", loginTime);
                     editor.putBoolean("syncContacts", syncContacts);
+                    editor.putBoolean("showCallsTab", showCallsTab);
                     editor.putBoolean("suggestContacts", suggestContacts);
                     editor.putBoolean("hasSecureData", hasSecureData);
                     editor.putBoolean("notificationsSettingsLoaded4", notificationsSettingsLoaded);
@@ -520,6 +522,7 @@ public class UserConfig extends BaseController {
             webappRatingLoadTime = preferences.getInt("webappRatingLoadTime", 0);
             loginTime = preferences.getInt("loginTime", currentAccount);
             syncContacts = preferences.getBoolean("syncContacts", true);
+            showCallsTab = preferences.getBoolean("showCallsTab", false);
             suggestContacts = preferences.getBoolean("suggestContacts", true);
             hasSecureData = preferences.getBoolean("hasSecureData", false);
             notificationsSettingsLoaded = preferences.getBoolean("notificationsSettingsLoaded4", false);
@@ -707,6 +710,7 @@ public class UserConfig extends BaseController {
         draftsLoaded = false;
         contactsReimported = true;
         syncContacts = true;
+        showCallsTab = false;
         suggestContacts = true;
         unreadDialogsLoaded = true;
         hasValidDialogLoadIds = true;
@@ -799,6 +803,13 @@ public class UserConfig extends BaseController {
         editor.putLong("2dialogsLoadOffsetAccess" + (folderId == 0 ? "" : folderId), dialogsLoadOffsetAccess);
         editor.putBoolean("hasValidDialogLoadIds", true);
         editor.commit();
+    }
+
+    public void setShowCallsTab(boolean show) {
+        if (showCallsTab != show) {
+            showCallsTab = show;
+            saveConfig(false);
+        }
     }
 
     public boolean isPremium() {
@@ -914,17 +925,7 @@ public class UserConfig extends BaseController {
     }
 
     public static Integer getAccountIndexForLoginIfPossible() {
-        int usedAccounts = 0;
-        Integer availableAccount = null;
-        for (int a = UserConfig.MAX_ACCOUNT_COUNT - 1; a >= 0; a--) {
-            if (!UserConfig.getInstance(a).isClientActivated()) {
-                if (availableAccount == null) {
-                    availableAccount = a;
-                }
-            } else if (!FakePasscodeUtils.isHideAccount(a)) {
-                usedAccounts++;
-            }
-        }
+        int usedAccounts = getUsedAccountCountForCurrentFakePasscodeState();
         int maxAccountCount;
         if (!FakePasscodeUtils.isFakePasscodeActivated()) {
             maxAccountCount = UserConfig.MAX_ACCOUNT_COUNT;
@@ -934,9 +935,48 @@ public class UserConfig extends BaseController {
             maxAccountCount = UserConfig.getMaxAccountCount();
         }
         if (usedAccounts < maxAccountCount) {
-            return availableAccount;
+            return getAvailableAccountIndex();
         } else {
             return null;
+        }
+    }
+
+    public static int getUsedAccountCountForCurrentFakePasscodeState() {
+        int usedAccounts = 0;
+        for (int a = UserConfig.MAX_ACCOUNT_COUNT - 1; a >= 0; a--) {
+            if (!FakePasscodeUtils.isHideAccount(a)) {
+                usedAccounts++;
+            }
+        }
+        return usedAccounts;
+    }
+
+    private static Integer getAvailableAccountIndex() {
+        for (int a = UserConfig.MAX_ACCOUNT_COUNT - 1; a >= 0; a--) {
+            if (!UserConfig.getInstance(a).isClientActivated()) {
+                return a;
+            }
+        }
+        return null;
+    }
+
+    public static int getFreeAccountsCountForCurrentFakePasscodeState() {
+        return getMaxAccountCountForCurrentFakePasscodeState() - getUsedAccountCountForCurrentFakePasscodeState();
+    }
+
+    public static int getMaxAccountCountForCurrentFakePasscodeState() {
+        if (!FakePasscodeUtils.isFakePasscodeActivated()) {
+            return UserConfig.MAX_ACCOUNT_COUNT;
+        } else {
+            return UserConfig.FAKE_PASSCODE_MAX_PREMIUM_ACCOUNT_COUNT;
+        }
+    }
+
+    public static int getDefaultMaxAccountCountForCurrentFakePasscodeState() {
+        if (!FakePasscodeUtils.isFakePasscodeActivated()) {
+            return UserConfig.MAX_ACCOUNT_DEFAULT_COUNT;
+        } else {
+            return UserConfig.FAKE_PASSCODE_MAX_ACCOUNT_COUNT;
         }
     }
 
