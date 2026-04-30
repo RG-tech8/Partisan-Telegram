@@ -12790,6 +12790,101 @@ public class ChatActivity extends BaseFragment implements
         return false;
     }
 
+    private boolean isRestrictedForwardSource(MessageObject messageObject) {
+        return messageObject != null && messageObject.messageOwner != null && (
+                getMessagesController().isPeerNoForwards(messageObject.getDialogId()) ||
+                messageObject.messageOwner.noforwards
+        );
+    }
+
+    private boolean hasSelectedRestrictedForwardSource() {
+        try {
+            for (int i = 0; i < selectedMessagesIds.length; ++i) {
+                for (int j = 0; j < selectedMessagesIds[i].size(); ++j) {
+                    if (isRestrictedForwardSource(selectedMessagesIds[i].valueAt(j))) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignore) {}
+        return false;
+    }
+
+    private boolean hasRestrictedForwardSource(ArrayList<MessageObject> messages) {
+        if (messages == null) {
+            return false;
+        }
+        for (int a = 0, N = messages.size(); a < N; a++) {
+            if (isRestrictedForwardSource(messages.get(a))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canSendMessageAsRestrictedCopy(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null) {
+            return false;
+        }
+        TLRPC.MessageMedia media = messageObject.messageOwner.media;
+        if (media == null || media instanceof TLRPC.TL_messageMediaEmpty || media instanceof TLRPC.TL_messageMediaWebPage) {
+            return messageObject.messageOwner.message != null;
+        }
+        return media.photo instanceof TLRPC.TL_photo ||
+                media.document instanceof TLRPC.TL_document ||
+                media instanceof TLRPC.TL_messageMediaVenue ||
+                media instanceof TLRPC.TL_messageMediaGeo ||
+                media instanceof TLRPC.TL_messageMediaPoll ||
+                media.phone_number != null;
+    }
+
+    private boolean canCopyMessageForRestrictedForward(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null || messageObject.isQuickReply()) {
+            return false;
+        }
+        if (messageObject.type == MessageObject.TYPE_GIFT_STARS || messageObject.type == MessageObject.TYPE_GIFT_THEME_UPDATE || messageObject.type == MessageObject.TYPE_SUGGEST_BIRTHDAY || messageObject.type == MessageObject.TYPE_GIFT_OFFER || messageObject.type == MessageObject.TYPE_SHARING_OFFER) {
+            return false;
+        }
+        return !(messageObject.messageOwner instanceof TLRPC.TL_message_secret) &&
+                !messageObject.needDrawBluredPreview() &&
+                !messageObject.isLiveLocation() &&
+                messageObject.type != MessageObject.TYPE_PHONE_CALL &&
+                !messageObject.isSponsored() &&
+                canSendMessageAsRestrictedCopy(messageObject);
+    }
+
+    private boolean canCopyMessagesForRestrictedForward(MessageObject messageObject, MessageObject.GroupedMessages groupedMessages) {
+        if (groupedMessages != null && groupedMessages.messages != null && !groupedMessages.messages.isEmpty()) {
+            for (int a = 0, N = groupedMessages.messages.size(); a < N; a++) {
+                if (!canCopyMessageForRestrictedForward(groupedMessages.messages.get(a))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return canCopyMessageForRestrictedForward(messageObject);
+    }
+
+    private boolean canForwardSelectedMessagesAsCopy() {
+        boolean hasRestrictedSource = false;
+        try {
+            for (int i = 0; i < selectedMessagesIds.length; ++i) {
+                for (int j = 0; j < selectedMessagesIds[i].size(); ++j) {
+                    MessageObject msg = selectedMessagesIds[i].valueAt(j);
+                    if (isRestrictedForwardSource(msg)) {
+                        hasRestrictedSource = true;
+                    }
+                    if (!canCopyMessageForRestrictedForward(msg)) {
+                        return false;
+                    }
+                }
+            }
+        } catch (Exception ignore) {
+            return false;
+        }
+        return hasRestrictedSource;
+    }
+
     private void share() {
         MessageObject msg = null;
         for (int a = 1; a >= 0; a--) {
@@ -12837,7 +12932,8 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void openForward(boolean fromActionBar) {
-        if (getMessagesController().isChatNoForwards(currentChat) || hasSelectedNoforwardsMessage()) {
+        boolean copyRestrictedForward = canForwardSelectedMessagesAsCopy();
+        if (hasSelectedRestrictedForwardSource() && !copyRestrictedForward) {
             // We should update text if user changed locale without re-opening chat activity
             String str;
             if (getMessagesController().isChatNoForwards(currentChat)) {
@@ -12908,7 +13004,7 @@ public class ChatActivity extends BaseFragment implements
         Bundle args = new Bundle();
         args.putBoolean("onlySelect", true);
         args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
-        args.putInt("messagesCount", canForwardMessagesCount);
+        args.putInt("messagesCount", copyRestrictedForward ? selectedMessagesIds[0].size() + selectedMessagesIds[1].size() : canForwardMessagesCount);
         args.putInt("hasPoll", hasPoll);
         args.putBoolean("hasInvoice", hasInvoice);
         args.putBoolean("canSelectTopics", true);
@@ -15721,6 +15817,9 @@ public class ChatActivity extends BaseFragment implements
                     messagePreviewParams.attach(forwardingPreviewView);
                 }
                 messagePreviewParams.updateForward(messageObjectsToForward, dialog_id);
+                if (hasRestrictedForwardSource(messageObjectsToForward)) {
+                    messagePreviewParams.hideForwardSendersName = true;
+                }
                 if (messagePreviewParams.isEmpty() && editingMessageObject == null) {
                     messagePreviewParams = null;
                 }
@@ -19773,22 +19872,22 @@ public class ChatActivity extends BaseFragment implements
                     }
                     }
 
-                boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || hasSelectedNoforwardsMessage();
+                boolean restrictedForwardSource = hasSelectedRestrictedForwardSource();
+                boolean copyRestrictedForward = canForwardSelectedMessagesAsCopy();
+                boolean canForwardSelection = cantForwardMessagesCount == 0 || copyRestrictedForward;
                 if (prevCantForwardCount == 0 && cantForwardMessagesCount != 0 || prevCantForwardCount != 0 && cantForwardMessagesCount == 0) {
                     forwardButtonAnimation = new AnimatorSet();
                     ArrayList<Animator> animators = new ArrayList<>();
                     if (forwardItem != null) {
-                        forwardItem.setEnabled(cantForwardMessagesCount == 0 || noforwards);
-                        animators.add(ObjectAnimator.ofFloat(forwardItem, View.ALPHA, cantForwardMessagesCount == 0 ? 1.0f : 0.5f));
+                        forwardItem.setEnabled(canForwardSelection);
+                        animators.add(ObjectAnimator.ofFloat(forwardItem, View.ALPHA, canForwardSelection ? 1.0f : 0.5f));
 
-                        if (noforwards && forwardItem.getBackground() != null) {
-                            forwardItem.setBackground(null);
-                        } else if (forwardItem.getBackground() == null) {
+                        if (forwardItem.getBackground() == null) {
                             forwardItem.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 5));
                         }
                     }
                     if (actionsButtonsLayout != null) {
-                        actionsButtonsLayout.setForwardButtonEnabled(cantForwardMessagesCount == 0 || noforwards, true);
+                        actionsButtonsLayout.setForwardButtonEnabled(canForwardSelection, true);
                     }
                     forwardButtonAnimation.playTogether(animators);
                     forwardButtonAnimation.setDuration(100);
@@ -19801,15 +19900,14 @@ public class ChatActivity extends BaseFragment implements
                     forwardButtonAnimation.start();
                 } else {
                 if (forwardItem != null) {
-                    forwardItem.setEnabled(cantForwardMessagesCount == 0 || noforwards);
-                    forwardItem.setAlpha(cantForwardMessagesCount == 0 ? 1.0f : 0.5f);
-                    if (noforwards) {
-                    } else if (forwardItem.getBackground() == null) {
+                    forwardItem.setEnabled(canForwardSelection);
+                    forwardItem.setAlpha(canForwardSelection ? 1.0f : 0.5f);
+                    if (forwardItem.getBackground() == null) {
                             forwardItem.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 3));
                         }
                     }
                     if (actionsButtonsLayout != null) {
-                        actionsButtonsLayout.setForwardButtonEnabled(cantForwardMessagesCount == 0 || noforwards, false);
+                        actionsButtonsLayout.setForwardButtonEnabled(canForwardSelection, false);
                     }
                 }
                 if (saveItem != null) {
@@ -19820,7 +19918,7 @@ public class ChatActivity extends BaseFragment implements
                 int copyVisible = View.GONE, starVisible = View.GONE, newCopyVisible = View.GONE, newStarVisible = View.GONE;
                 if (copyItem != null) {
                     copyVisible = copyItem.getVisibility();
-                    copyItem.setVisibility(!noforwards && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0 ? View.VISIBLE : View.GONE);
+                    copyItem.setVisibility(!restrictedForwardSource && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0 ? View.VISIBLE : View.GONE);
                     newCopyVisible = copyItem.getVisibility();
                 }
                 if (starItem != null) {
@@ -19950,7 +20048,7 @@ public class ChatActivity extends BaseFragment implements
                 }
 
                 if (shareItem != null) {
-                    boolean show = selectedCount == 1 && !noforwards;
+                    boolean show = selectedCount == 1 && !restrictedForwardSource;
                     if (show) {
                         show = false;
                         for (int a = 0; a < 2; ++a) {
@@ -31900,6 +31998,7 @@ public class ChatActivity extends BaseFragment implements
         allowPin = allowPin && message.getId() > 0 && (message.messageOwner.action == null || message.messageOwner.action instanceof TLRPC.TL_messageActionEmpty) && !message.isExpiredStory() && message.type != MessageObject.TYPE_STORY_MENTION;
         boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || message.messageOwner.noforwards || getDialogId() == UserObject.VERIFY;
         boolean noforwardsOrPaidMedia = noforwards || message.type == MessageObject.TYPE_PAID_MEDIA;
+        boolean canForwardAsRestrictedCopy = noforwards && getDialogId() != UserObject.VERIFY && canCopyMessagesForRestrictedForward(message, groupedMessages);
         boolean allowUnpin = message.getDialogId() != mergeDialogId && allowPin && (pinnedMessageObjects.containsKey(message.getId()) || groupedMessages != null && !groupedMessages.messages.isEmpty() && pinnedMessageObjects.containsKey(groupedMessages.messages.get(0).getId())) && !message.isExpiredStory();
         boolean allowEdit = message.canEditMessage(currentChat) && !chatActivityEnterView.hasAudioToSend() && message.getDialogId() != mergeDialogId && message.type != MessageObject.TYPE_STORY && message.type != MessageObject.TYPE_POLL;
         if (allowEdit && groupedMessages != null) {
@@ -46069,6 +46168,7 @@ public class ChatActivity extends BaseFragment implements
         allowPin = allowPin && message.getId() > 0 && (message.messageOwner.action == null || message.messageOwner.action instanceof TLRPC.TL_messageActionEmpty) && !message.isExpiredStory() && message.type != MessageObject.TYPE_STORY_MENTION;
         boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || message.messageOwner.noforwards || getDialogId() == UserObject.VERIFY;
         boolean noforwardsOrPaidMedia = noforwards || message.type == MessageObject.TYPE_PAID_MEDIA;
+        boolean canForwardAsRestrictedCopy = noforwards && getDialogId() != UserObject.VERIFY && canCopyMessagesForRestrictedForward(message, groupedMessages);
         boolean allowUnpin = message.getDialogId() != mergeDialogId && allowPin && (pinnedMessageObjects.containsKey(message.getId()) || groupedMessages != null && !groupedMessages.messages.isEmpty() && pinnedMessageObjects.containsKey(groupedMessages.messages.get(0).getId())) && !message.isExpiredStory();
         boolean allowEdit = message.canEditMessage(currentChat) && !chatActivityEnterView.hasAudioToSend() && message.getDialogId() != mergeDialogId && message.type != MessageObject.TYPE_STORY && message.type != MessageObject.TYPE_POLL;
         if (allowEdit && groupedMessages != null) {
@@ -46546,7 +46646,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
                 if (!selectedObject.isSponsored() && chatMode != MODE_QUICK_REPLIES && chatMode != MODE_SCHEDULED && (!selectedObject.needDrawBluredPreview() || selectedObject.hasExtendedMediaPreview()) &&
-                        !selectedObject.isLiveLocation() && selectedObject.type != MessageObject.TYPE_PHONE_CALL && !noforwards &&
+                    !selectedObject.isLiveLocation() && selectedObject.type != MessageObject.TYPE_PHONE_CALL && (!noforwards || canForwardAsRestrictedCopy) && selectedObject.type != MessageObject.TYPE_SHARING_OFFER &&
                     selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM && selectedObject.type != MessageObject.TYPE_GIFT_OFFER && selectedObject.type != MessageObject.TYPE_GIFT_OFFER_REJECTED && selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM_CHANNEL && selectedObject.type != MessageObject.TYPE_SUGGEST_PHOTO && !selectedObject.isWallpaperAction()
                         && !message.isExpiredStory() && message.type != MessageObject.TYPE_STORY_MENTION && message.type != MessageObject.TYPE_GIFT_STARS) {
                     items.add(LocaleController.getString(R.string.Forward));
