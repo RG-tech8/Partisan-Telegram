@@ -309,14 +309,6 @@ task checkVisibility {
             throw new GradleException("Building public version of private code!")
         }
     }
-    doLast {
-        if (project.gradle.startParameter.taskNames.find { it.contains("HA_public") }) {
-            def privateBuild = file("${projectDir}_AppHockeyApp/afat/HA_private/Telegram-Beta.apk")
-            if (privateBuild.exists()) {
-                privateBuild.delete()
-            }
-        }
-    }
 }
 
 preBuild.dependsOn checkVisibility
