@@ -1789,85 +1789,8 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         return true;
     }
 
-    private String getProtectedForwardLocalPath(MessageObject messageObject) {
-        if (messageObject == null || messageObject.messageOwner == null) {
-            return null;
-        }
-        if (!TextUtils.isEmpty(messageObject.messageOwner.attachPath)) {
-            File file = new File(messageObject.messageOwner.attachPath);
-            if (file.exists()) {
-                return file.getAbsolutePath();
-            }
-        }
-        File file = getFileLoader().getPathToMessage(messageObject.messageOwner, false, true);
-        if (file != null && file.exists()) {
-            return file.getAbsolutePath();
-        }
-        file = getFileLoader().getPathToMessage(messageObject.messageOwner, true, true);
-        if (file != null && file.exists()) {
-            return file.getAbsolutePath();
-        }
-        TLRPC.Document document = messageObject.getDocument();
-        if (document != null) {
-            file = getFileLoader().getPathToAttach(document, false);
-            if (file != null && file.exists()) {
-                return file.getAbsolutePath();
-            }
-            file = getFileLoader().getPathToAttach(document, true);
-            if (file != null && file.exists()) {
-                return file.getAbsolutePath();
-            }
-        }
-        return null;
-    }
-
-    private TLRPC.TL_photo createProtectedForwardPhoto(TLRPC.TL_photo photo, String localPath) {
-        if (photo == null) {
-            return null;
-        }
-        if (!TextUtils.isEmpty(localPath) && new File(localPath).exists()) {
-            TLRPC.TL_photo generatedPhoto = generatePhotoSizes(localPath, null);
-            if (generatedPhoto != null) {
-                return generatedPhoto;
-            }
-        }
-        TLRPC.TL_photo photoCopy = new TLRPC.TL_photo();
-        photoCopy.flags = photo.flags;
-        photoCopy.has_stickers = photo.has_stickers;
-        photoCopy.id = 0;
-        photoCopy.access_hash = 0;
-        photoCopy.file_reference = new byte[0];
-        photoCopy.date = getConnectionsManager().getCurrentTime();
-        photoCopy.sizes.addAll(photo.sizes);
-        photoCopy.video_sizes.addAll(photo.video_sizes);
-        photoCopy.dc_id = 0;
-        return photoCopy;
-    }
-
-    private TLRPC.TL_document createProtectedForwardDocument(TLRPC.TL_document document, String localPath) {
-        if (document == null) {
-            return null;
-        }
-        TLRPC.TL_document documentCopy = new TLRPC.TL_document();
-        documentCopy.flags = document.flags;
-        documentCopy.id = 0;
-        documentCopy.access_hash = 0;
-        documentCopy.file_reference = new byte[0];
-        documentCopy.date = getConnectionsManager().getCurrentTime();
-        documentCopy.mime_type = document.mime_type;
-        documentCopy.size = document.size;
-        documentCopy.thumbs.addAll(document.thumbs);
-        documentCopy.video_thumbs.addAll(document.video_thumbs);
-        documentCopy.dc_id = 0;
-        documentCopy.attributes.addAll(document.attributes);
-        documentCopy.file_name_fixed = document.file_name_fixed;
-        documentCopy.localThumbPath = document.localThumbPath;
-        if (!TextUtils.isEmpty(localPath)) {
-            documentCopy.localPath = localPath;
-        } else {
-            documentCopy.localPath = document.localPath;
-        }
-        return documentCopy;
+    public boolean canSendMessagesAsProtectedCopy(ArrayList<MessageObject> messages) {
+        return hasProtectedForwardSource(messages) && canSendProtectedMessagesAsCopy(messages);
     }
 
     public void processForwardFromMyName(MessageObject messageObject, long did, long payStars, long monoForumPeerId, MessageSuggestionParams suggestionParams, Integer autoDeleteDelay) {
@@ -1889,10 +1812,6 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             if (messageObject.messageOwner.media.photo instanceof TLRPC.TL_photo) {
                 TLRPC.TL_photo photo = (TLRPC.TL_photo) messageObject.messageOwner.media.photo;
                 String path = null;
-                if (!DialogObject.isEncryptedDialog(did) && isProtectedForwardSource(messageObject)) {
-                    path = getProtectedForwardLocalPath(messageObject);
-                    photo = createProtectedForwardPhoto(photo, path);
-                }
                 SendMessagesHelper.SendMessageParams fparams = SendMessagesHelper.SendMessageParams.of(photo, path, did, messageObject.replyMessageObject, replyToTopMsg, caption, captionEntities, null, params, notify, scheduleDate, scheduleRepeatPeriod, messageObject.messageOwner.media.ttl_seconds, messageObject, false, messageObject.hasMediaSpoilers()).addAutoDeleteDelay(autoDeleteDelay);
                 fparams.payStars = payStars;
                 fparams.monoForumPeer = monoForumPeerId;
@@ -1903,8 +1822,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                 TLRPC.TL_document document = (TLRPC.TL_document) messageObject.messageOwner.media.document;
                 String path = messageObject.messageOwner.attachPath;
                 if (!DialogObject.isEncryptedDialog(did) && isProtectedForwardSource(messageObject)) {
-                    path = getProtectedForwardLocalPath(messageObject);
-                    document = createProtectedForwardDocument(document, path);
+                    path = null;
                 }
                 SendMessagesHelper.SendMessageParams fparams = SendMessagesHelper.SendMessageParams.of(document, null, path, did, messageObject.replyMessageObject, replyToTopMsg, caption, captionEntities, null, params, notify, scheduleDate, scheduleRepeatPeriod, messageObject.messageOwner.media.ttl_seconds, messageObject, null, false, messageObject.hasMediaSpoilers()).addAutoDeleteDelay(autoDeleteDelay);
                 fparams.payStars = payStars;
@@ -2272,7 +2190,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             TLRPC.InputPeer inputPeer = getMessagesController().getInputPeer(peer);
             long lastDialogId = 0;
             final boolean toMyself = peer == myId;
-            final boolean copyProtectedMessages = hasProtectedForwardSource(messages) && canSendProtectedMessagesAsCopy(messages);
+            final boolean copyProtectedMessages = canSendMessagesAsProtectedCopy(messages);
             long lastGroupedId;
             for (int a = 0; a < messages.size(); a++) {
                 MessageObject msgObj = messages.get(a);
