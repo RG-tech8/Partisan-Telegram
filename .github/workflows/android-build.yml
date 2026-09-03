@@ -47,7 +47,7 @@ jobs:
           sdkmanager="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
           yes | "${sdkmanager}" --licenses >/dev/null || true
           "${sdkmanager}" 'platforms;android-35' 'build-tools;35.0.0' \
-            'ndk;27.2.12479018' 'cmake;3.10.2'
+            'ndk;27.2.12479018' 'cmake;3.10.2.4988404'
 
       - name: Build the universal release APK
         shell: bash
