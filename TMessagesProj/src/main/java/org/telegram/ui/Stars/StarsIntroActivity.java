@@ -98,6 +98,7 @@ import org.telegram.tgnet.tl.TL_stars;
 import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.AccountFrozenAlert;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.SimpleTextView;
@@ -266,11 +267,11 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
                 int firstViewHeight;
                 if (StarsIntroActivity.this.isLandscapeMode) {
-                    firstViewHeight = StarsIntroActivity.this.statusBarHeight + actionBar.getMeasuredHeight() - AndroidUtilities.dp(16);
+                    firstViewHeight = StarsIntroActivity.this.statusBarHeight + actionBar.getMeasuredHeight() - dp(16);
                 } else {
-                    int h = AndroidUtilities.dp(140) + statusBarHeight;
-                    if (backgroundView.getMeasuredHeight() + AndroidUtilities.dp(24) > h) {
-                        h = backgroundView.getMeasuredHeight() + AndroidUtilities.dp(24);
+                    int h = dp(140) + statusBarHeight;
+                    if (backgroundView.getMeasuredHeight() + dp(24) > h) {
+                        h = backgroundView.getMeasuredHeight() + dp(24);
                     }
                     firstViewHeight = h;
                 }
@@ -280,11 +281,10 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         };
 
         super.createView(context);
+        if (parentLayout != null && parentLayout.isRightLayout()) {
+            actionBar.setBackButtonImage(R.drawable.ic_ab_close);
+        }
 
-//        balanceView = new StarsBalanceView(context, currentAccount);
-//        actionBar.addView(balanceView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.BOTTOM));
-
-//        yOffset = dp(16);
         aboveTitleView = new FrameLayout(context);
         aboveTitleView.setClickable(true);
         iconTextureView = new GLIconTextureView(context, GLIconRenderer.DIALOG_STYLE, Icon3D.TYPE_GOLDEN_STAR);
@@ -1564,7 +1564,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
             star.setSpan(new ImageSpan(drawable), 0, star.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 
             ton = new SpannableString("TON");
-            drawable = context.getResources().getDrawable(R.drawable.ton).mutate();
+            drawable = context.getResources().getDrawable(R.drawable.mini_gram_72).mutate();
             ColoredImageSpan span = new ColoredImageSpan(drawable);
             span.setSize(dp(18));
             span.setTranslateY(dp(.5f));
@@ -1657,7 +1657,16 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
                     spanString.setSpan(span, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     setGiftImage(span.imageReceiver, transaction.stargift, 16);
                     titleTextView.setText(username);
-                    if (transaction.stargift_resale) {
+                    if (transaction.offer) {
+                        final SpannableStringBuilder sb = new SpannableStringBuilder("x ");
+                        sb.setSpan(new AnimatedEmojiSpan(transaction.stargift.getDocument(), subtitleTextView.getPaint().getFontMetricsInt()), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        if (!transaction.amount.negative()) {
+                            sb.append(getString(transaction.refund ? R.string.StarGiftTransactionGiftOfferRefund : R.string.StarGiftTransactionGiftSale));
+                        } else {
+                            sb.append(getString(transaction.refund ? R.string.StarGiftTransactionGiftSaleRefund : R.string.StarGiftTransactionGiftOffer));
+                        }
+                        subtitleTextView.setText(sb);
+                    } else if (transaction.stargift_resale) {
                         final SpannableStringBuilder sb = new SpannableStringBuilder("x ");
                         sb.setSpan(new AnimatedEmojiSpan(transaction.stargift.getDocument(), subtitleTextView.getPaint().getFontMetricsInt()), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                         if (!transaction.amount.negative()) {
@@ -3301,7 +3310,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         if (cache != null && cache[0] != null) {
             span = cache[0];
         } else {
-            span = new ColoredImageSpan(ton ? R.drawable.ton : R.drawable.msg_premium_liststar);
+            span = new ColoredImageSpan(ton ? R.drawable.mini_gram_72 : R.drawable.msg_premium_liststar);
             if (cache != null) {
                 cache[0] = span;
             }
@@ -3377,7 +3386,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         if (spanRef != null && spanRef[0] != null) {
             span = spanRef[0];
         } else {
-            span = new ColoredImageSpan(ton ? R.drawable.ton : R.drawable.msg_premium_liststar);
+            span = new ColoredImageSpan(ton ? R.drawable.mini_gram_72 : R.drawable.msg_premium_liststar);
             span.setScale(ton ? 0.222f : 1.13f, ton ? 0.222f : 1.13f);
         }
         if (spanRef != null) {
@@ -3416,7 +3425,7 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
             ssb = (SpannableStringBuilder) cs;
         }
         final String symbol = ton ? "TON" : "⭐";
-        final int resId = ton ? R.drawable.ton : R.drawable.star_small_inner;
+        final int resId = ton ? R.drawable.mini_gram_72 : R.drawable.star_small_inner;
         SpannableString spacedStar = new SpannableString(symbol + " ");
         ColoredImageSpan span;
         if (spanArr != null && spanArr[0] != null) {
@@ -4114,7 +4123,17 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
                 final TL_stars.TL_starsTransactionPeer peer = (TL_stars.TL_starsTransactionPeer) transaction.peer;
                 final long peerId = DialogObject.getPeerDialogId(peer.peer);
                 long from_id, to_id;
-                if (transaction.stargift_resale) {
+                if (transaction.offer) {
+                    if (!negative) {
+                        tableView.addRow(getString(R.string.StarGiftReason), getString(transaction.refund ? R.string.StarGiftReasonOfferRefund : R.string.StarGiftReasonSale));
+                        to_id = selfId;
+                        from_id = peerId;
+                    } else {
+                        tableView.addRow(getString(R.string.StarGiftReason), getString(transaction.refund ? R.string.StarGiftReasonSale : R.string.StarGiftReasonOffer));
+                        to_id = peerId;
+                        from_id = selfId;
+                    }
+                } else if (transaction.stargift_resale) {
                     if (!negative) {
                         tableView.addRow(getString(R.string.StarGiftReason), getString(transaction.refund ? R.string.StarGiftReasonPurchase : R.string.StarGiftReasonSale));
                         to_id = selfId;
@@ -5134,13 +5153,13 @@ public class StarsIntroActivity extends GradientHeaderActivity implements Notifi
         infoView.setLinkTextColor(Theme.getColor(Theme.key_chat_messageLinkIn, resourcesProvider));
         linearLayout.addView(infoView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 14, 3, 14, 24));
 
-        ButtonWithCounterView button = new ButtonWithCounterView(context, resourcesProvider);
+        ButtonWithCounterView button = new ButtonWithCounterView(context, resourcesProvider).setRound();
         button.setText(getString(stars > 0 ? R.string.PaidContentUpdateButton : R.string.PaidContentButton), false);
         linearLayout.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
 
         final ButtonWithCounterView clearButton;
         if (stars > 0 && allowClear) {
-            clearButton = new ButtonWithCounterView(context, false, resourcesProvider);
+            clearButton = new ButtonWithCounterView(context, false, resourcesProvider).setRound();
             clearButton.setText(getString(R.string.PaidContentClearButton), false, false);
             linearLayout.addView(clearButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 0, 4, 0, 0));
         } else {

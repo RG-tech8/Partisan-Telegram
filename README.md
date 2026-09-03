@@ -1,7 +1,7 @@
 ## Partisan-Telegram messenger for Android
 
 
-![](https://github.com/RG-tech8/Partisan-Telegram/blob/master/wiki_images/readme.webp)
+![](https://github.com/reborngenesis/Partisan-Telegram/blob/main/wiki_images/readme.webp)
 
 RGram — специальная версия Telegram для пользователей в России и других несвободных странах, которым нужен безопасный режим на случай давления.
 У RGram несколько паролей: основной и ложные. Ложные запускают заранее заданные действия, например:

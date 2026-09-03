@@ -1,0 +1,82 @@
+name: Android release build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Free space for the native build
+        shell: bash
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          if [[ -d "${ANDROID_HOME}/ndk" ]]; then
+            sudo find "${ANDROID_HOME}/ndk" -mindepth 1 -maxdepth 1 \
+              ! -name '27.2.12479018' -exec rm -rf {} +
+          fi
+          df -h /
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Android native toolchain
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' \
+            'ndk;27.2.12479018' 'cmake;3.10.2'
+
+      - name: Build the universal release APK
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew :TMessagesProj_App:assembleAfatRelease \
+            --no-daemon --max-workers=2 --stacktrace
+
+      - name: Collect APK and SHA-256
+        id: package
+        shell: bash
+        run: |
+          version=$(sed -n 's/.*PARTISAN_VERSION_STRING = "\([^"]*\)".*/\1/p' \
+            TMessagesProj/src/main/java/org/telegram/messenger/partisan/PartisanVersion.java)
+          apk=$(find TMessagesProj_App -type f -name app.apk \
+            -path '*/afat/release/*' -print -quit)
+          test -n "${version}"
+          test -n "${apk}"
+          mkdir -p dist
+          cp "${apk}" "dist/RGram-${version}.apk"
+          cd dist
+          sha256sum "RGram-${version}.apk" > "RGram-${version}.apk.sha256"
+          cat "RGram-${version}.apk.sha256"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: RGram-release-${{ github.sha }}
+          path: |
+            dist/*.apk
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
