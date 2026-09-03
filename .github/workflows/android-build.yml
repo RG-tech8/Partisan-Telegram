@@ -99,6 +99,9 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :TMessagesProj_App:assembleAfatRelease \
+            -PRELEASE_STORE_PASSWORD="${ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD}" \
+            -PRELEASE_KEY_ALIAS="${ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS}" \
+            -PRELEASE_KEY_PASSWORD="${ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD}" \
             --no-daemon --max-workers=2 --stacktrace
 
       - name: Collect APK and SHA-256
