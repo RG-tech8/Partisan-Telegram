@@ -72,6 +72,7 @@ jobs:
             RELEASE_STORE_PASSWORD=$(openssl rand -hex 24)
             RELEASE_KEY_PASSWORD="${RELEASE_STORE_PASSWORD}"
             RELEASE_KEY_ALIAS='ci'
+            rm -f "${keystore}"
             keytool -genkeypair -noprompt \
               -keystore "${keystore}" \
               -storepass "${RELEASE_STORE_PASSWORD}" \
